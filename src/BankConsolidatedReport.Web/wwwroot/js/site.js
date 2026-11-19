@@ -305,14 +305,22 @@ function renderTable(data, mode) {
     const gidIdx = columns.indexOf('GID');
     const visibleColIndices = columns.map((col, idx) => idx).filter(idx => columns[idx] !== 'GID');
 
-    // Render Table Header
+    // Helper: determine if a column is numeric (amounts/quarters) vs text (region, branch, etc.)
+    const checkIsNumeric = (idx) => {
+        const raw = columns[idx].toUpperCase();
+        return raw.includes('LOI_NHUAN') || raw.includes('NET') || 
+               ['Q1', 'Q2', 'Q3', 'Q4'].includes(raw) ||
+               rows.some(r => typeof r[idx] === 'number');
+    };
+
+    // Render Table Header (Text strictly left-aligned, Numbers strictly right-aligned)
     const thead = $('reportThead');
     if (thead) {
         thead.innerHTML = '<tr>' + visibleColIndices.map(idx => {
             const rawName = columns[idx];
             const label = COLUMN_LABELS[rawName] || rawName.replace(/_/g, ' ');
-            const isNumericCol = rows.length > 0 && typeof rows[0][idx] === 'number';
-            return `<th class="${isNumericCol ? 'text-right' : ''}">${label}</th>`;
+            const isNumericCol = checkIsNumeric(idx);
+            return `<th class="${isNumericCol ? 'text-right' : 'text-left'}">${label}</th>`;
         }).join('') + '</tr>';
     }
 
@@ -338,12 +346,10 @@ function renderTable(data, mode) {
         const cellsHtml = visibleColIndices.map(idx => {
             const val = row[idx];
             const isNum = typeof val === 'number';
+            const isNumericCol = checkIsNumeric(idx);
 
-            let cellClass = '';
-            if (isNum) {
-                cellClass = 'text-right tabular-nums';
-                if (val < 0) cellClass += ' negative-amount';
-            }
+            let cellClass = isNumericCol ? 'text-right tabular-nums' : 'text-left';
+            if (isNum && val < 0) cellClass += ' negative-amount';
 
             return `<td class="${cellClass}">${isNum ? formatNumber(val) : (val ?? '—')}</td>`;
         }).join('');
@@ -622,7 +628,7 @@ function showConfirmModal(message) {
 }
 
 $('btnCloseQuarter')?.addEventListener('click', async () => {
-    const year = parseInt($('lockYear')?.value || '2024', 10);
+    const year = parseInt($('lockYear')?.value || '2025', 10);
     const quarter = $('lockQuarter')?.value || 'Q1';
 
     const confirmed = await showConfirmModal(`Bạn có chắc chắn muốn chốt quý ${year}-${quarter}? Hệ thống sẽ khóa SHARE MODE và trigger sẽ chặn mọi thao tác cập nhật dữ liệu trên kỳ này.`);
@@ -644,7 +650,7 @@ $('btnCloseQuarter')?.addEventListener('click', async () => {
 });
 
 $('btnReopenQuarter')?.addEventListener('click', async () => {
-    const year = parseInt($('lockYear')?.value || '2024', 10);
+    const year = parseInt($('lockYear')?.value || '2025', 10);
     const quarter = $('lockQuarter')?.value || 'Q1';
 
     const confirmed = await showConfirmModal(`Bạn có muốn mở lại quý ${year}-${quarter}? Sau khi mở lại, người dùng có thể tiếp tục thêm, sửa giao dịch.`);
