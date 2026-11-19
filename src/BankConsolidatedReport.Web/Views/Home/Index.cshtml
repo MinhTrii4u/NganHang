@@ -1,0 +1,328 @@
+@{ ViewData["Title"] = "Dashboard"; }
+
+<!-- ===== TAB 1: Báo cáo OLAP ===== -->
+<section class="tab-panel active" id="tab-report">
+    <!-- KPI Cards -->
+    <div class="kpi-row" id="kpiRow">
+        <div class="kpi-card">
+            <div class="kpi-label">Tổng lợi nhuận ròng</div>
+            <div class="kpi-value" id="kpiNetIncome">—</div>
+            <div class="kpi-sub">Năm đang chọn</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Số dòng kết quả</div>
+            <div class="kpi-value" id="kpiRowCount">—</div>
+            <div class="kpi-sub">Truy vấn gần nhất</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Thời gian truy vấn</div>
+            <div class="kpi-value" id="kpiExecTime">—</div>
+            <div class="kpi-sub">mili giây</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-label">Quý đã khóa</div>
+            <div class="kpi-value" id="kpiLocked">—</div>
+            <div class="kpi-sub">Đang chốt</div>
+        </div>
+    </div>
+
+    <!-- Report Mode Selector -->
+    <div class="mode-selector">
+        <div class="mode-cards">
+            <label class="mode-card selected">
+                <input type="radio" name="reportMode" value="ROLLUP" checked>
+                <div class="mode-title">ROLLUP</div>
+                <div class="mode-desc">Tổng theo cấp bậc</div>
+            </label>
+            <label class="mode-card">
+                <input type="radio" name="reportMode" value="CUBE">
+                <div class="mode-title">CUBE</div>
+                <div class="mode-desc">Mọi tổ hợp chiều</div>
+            </label>
+            <label class="mode-card">
+                <input type="radio" name="reportMode" value="SETS">
+                <div class="mode-title">GROUPING SETS</div>
+                <div class="mode-desc">Tổ hợp chọn lọc</div>
+            </label>
+            <label class="mode-card">
+                <input type="radio" name="reportMode" value="PIVOT">
+                <div class="mode-title">PIVOT</div>
+                <div class="mode-desc">Quý thành cột</div>
+            </label>
+            <label class="mode-card">
+                <input type="radio" name="reportMode" value="PIVOT_DYN">
+                <div class="mode-title">PIVOT Động</div>
+                <div class="mode-desc">Nhóm SP thành cột</div>
+            </label>
+        </div>
+        <div class="mode-actions">
+            <select id="reportYear" class="form-select">
+                <option value="2025">2025</option>
+                <option value="2024">2024</option>
+            </select>
+            <button class="btn btn-primary" id="btnLoadReport">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                Xem báo cáo
+            </button>
+        </div>
+    </div>
+
+    <!-- Chart Toggle -->
+    <div class="chart-section">
+        <div class="section-header">
+            <h3>Biểu đồ phân tích</h3>
+            <button class="btn btn-sm btn-outline" id="btnToggleChart">Ẩn/Hiện</button>
+        </div>
+        <div class="chart-wrapper" id="chartWrapper">
+            <canvas id="reportChart" height="300"></canvas>
+        </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="table-section">
+        <div class="section-header">
+            <h3>Dữ liệu chi tiết</h3>
+            <div class="table-tools">
+                <input type="text" class="form-input search-input" id="tableSearch" placeholder="Tìm kiếm...">
+                <button class="btn btn-sm btn-outline" id="btnExportCsv">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    CSV
+                </button>
+                <button class="btn btn-sm btn-outline" id="btnExportExcel">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Excel
+                </button>
+            </div>
+        </div>
+        <div class="table-container" id="reportTableContainer">
+            <div class="skeleton-loader" id="reportSkeleton">
+                <div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>
+                <div class="skeleton-row"></div><div class="skeleton-row"></div>
+            </div>
+            <table class="data-table" id="reportTable" style="display:none">
+                <thead id="reportThead"></thead>
+                <tbody id="reportTbody"></tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- ===== TAB 2: Chốt kỳ ===== -->
+<section class="tab-panel" id="tab-lock">
+    <div class="page-header">
+        <h2>Chốt kỳ & Kiểm soát khóa</h2>
+        <p class="text-muted">Trigger <code>trg_fact_period_guard</code> tự động chặn mọi thay đổi dữ liệu trên kỳ đã chốt.</p>
+    </div>
+
+    <div class="card-row">
+        <div class="card">
+            <div class="card-header">Hành động Chốt / Mở quý</div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Năm</label>
+                        <select id="lockYear" class="form-select"><option>2025</option><option>2024</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Quý</label>
+                        <select id="lockQuarter" class="form-select"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select>
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-danger" id="btnCloseQuarter">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        Chốt quý
+                    </button>
+                    <button class="btn btn-success" id="btnReopenQuarter">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+                        Mở lại quý
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Các quý đã chốt</div>
+            <div class="card-body" id="closedQuartersList">
+                <p class="text-muted">Đang tải...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Lịch sử Chốt / Mở lại quý (period_close_log)</div>
+        <div class="card-body">
+            <div class="table-container">
+                <table class="data-table" id="periodCloseLogTable">
+                    <thead><tr><th>ID</th><th>Năm</th><th>Quý</th><th>Hành động</th><th>Người thực hiện</th><th>Thời gian</th></tr></thead>
+                    <tbody id="periodCloseLogBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== TAB 3: Nhập giao dịch ===== -->
+<section class="tab-panel" id="tab-txn">
+    <div class="page-header">
+        <h2>Nhập giao dịch & Nạp bảng rộng (UNPIVOT)</h2>
+    </div>
+
+    <div class="card-row">
+        <!-- Card 1: Nhập giao dịch đơn lẻ -->
+        <div class="card">
+            <div class="card-header">
+                Nhập giao dịch đơn lẻ (sp_add_txn)
+                <label class="toggle-label">
+                    <input type="checkbox" id="toggleTestMode">
+                    <span>Cho phép giá trị biên (test lỗi Oracle)</span>
+                </label>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Chi nhánh</label>
+                        <select id="txnBranch" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Sản phẩm</label>
+                        <select id="txnProduct" class="form-select"></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Khoản mục</label>
+                        <select id="txnItem" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Kỳ (YYYYMM)</label>
+                        <input type="number" id="txnPeriod" class="form-input" value="202503">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Số tiền (triệu đồng)</label>
+                        <input type="number" id="txnAmount" class="form-input" value="100" step="0.01">
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="btnAddTxn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Thêm giao dịch
+                </button>
+            </div>
+        </div>
+
+        <!-- Card 2: Nạp bảng rộng UNPIVOT -->
+        <div class="card">
+            <div class="card-header">Nạp dữ liệu bảng rộng (UNPIVOT / sp_load_wide)</div>
+            <div class="card-body">
+                <p class="text-muted">Nhập giá trị cho 4 quý. Bỏ trống quý nào thì UNPIVOT tự bỏ NULL.</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Chi nhánh</label>
+                        <select id="wideBranch" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Sản phẩm</label>
+                        <select id="wideProduct" class="form-select"></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Khoản mục</label>
+                        <select id="wideItem" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Năm</label>
+                        <select id="wideYear" class="form-select"><option>2025</option><option>2024</option></select>
+                    </div>
+                </div>
+                <div class="form-row quarters-row">
+                    <div class="form-group"><label>Q1</label><input type="number" id="wideQ1" class="form-input" step="0.01" placeholder="Bỏ trống = NULL"></div>
+                    <div class="form-group"><label>Q2</label><input type="number" id="wideQ2" class="form-input" step="0.01" placeholder="Bỏ trống = NULL"></div>
+                    <div class="form-group"><label>Q3</label><input type="number" id="wideQ3" class="form-input" step="0.01" placeholder="Bỏ trống = NULL"></div>
+                    <div class="form-group"><label>Q4</label><input type="number" id="wideQ4" class="form-input" step="0.01" placeholder="Bỏ trống = NULL"></div>
+                </div>
+                <button class="btn btn-primary" id="btnLoadWide">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Nạp bằng UNPIVOT
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== TAB 4: Nhật ký & Hệ thống ===== -->
+<section class="tab-panel" id="tab-logs">
+    <div class="page-header">
+        <h2>Nhật ký & Kiểm thử hệ thống</h2>
+    </div>
+
+    <!-- Net Income Widget -->
+    <div class="card">
+        <div class="card-header">Tra cứu nhanh Lợi nhuận ròng (fn_net_income)</div>
+        <div class="card-body">
+            <div class="form-row">
+                <div class="form-group"><label>Chi nhánh</label><select id="niBranch" class="form-select"></select></div>
+                <div class="form-group"><label>Năm</label><select id="niYear" class="form-select"><option>2025</option><option>2024</option></select></div>
+                <div class="form-group"><label>Quý</label><select id="niQuarter" class="form-select"><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
+                <div class="form-group" style="justify-content:end">
+                    <button class="btn btn-primary" id="btnNetIncome">Tra cứu</button>
+                </div>
+            </div>
+            <div class="ni-result" id="niResult"></div>
+        </div>
+    </div>
+
+    <div class="card-row">
+        <!-- Test Log -->
+        <div class="card">
+            <div class="card-header">Kết quả kiểm thử Oracle (test_log: T1–T9b)</div>
+            <div class="card-body">
+                <div class="table-container">
+                    <table class="data-table" id="testLogTable">
+                        <thead><tr><th>Test</th><th>Kết quả</th></tr></thead>
+                        <tbody id="testLogBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Status -->
+        <div class="card">
+            <div class="card-header">Trạng thái hệ thống</div>
+            <div class="card-body" id="systemStatusBody">
+                <p class="text-muted">Đang tải...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Log -->
+    <div class="card">
+        <div class="card-header">
+            Nhật ký Audit (trg_fact_audit)
+            <button class="btn btn-sm btn-outline" id="btnRefreshAudit">Làm mới</button>
+        </div>
+        <div class="card-body">
+            <div class="table-container">
+                <table class="data-table" id="auditLogTable">
+                    <thead><tr><th>ID</th><th>Hành động</th><th>Fact ID</th><th>Số tiền cũ</th><th>Số tiền mới</th><th>Người thay đổi</th><th>Thời gian</th></tr></thead>
+                    <tbody id="auditLogBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal">
+        <div class="modal-header">Xác nhận</div>
+        <div class="modal-body" id="confirmMessage"></div>
+        <div class="modal-footer">
+            <button class="btn btn-outline" id="confirmCancel">Hủy</button>
+            <button class="btn btn-danger" id="confirmOk">Xác nhận</button>
+        </div>
+    </div>
+</div>
+
