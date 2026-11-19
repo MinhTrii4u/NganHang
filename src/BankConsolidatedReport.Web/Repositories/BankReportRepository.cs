@@ -57,8 +57,20 @@ public class BankReportRepository
                 else
                 {
                     var val = reader.GetValue(i);
-                    // Oracle NUMBER → decimal → double for JSON
-                    row[i] = val is decimal d ? (object)(double)d : val;
+                    if (val is decimal d)
+                        row[i] = (double)d;
+                    else if (val is OracleDecimal od && !od.IsNull)
+                        row[i] = (double)od.Value;
+                    else if (val is int || val is long || val is double || val is float || val is string)
+                        row[i] = val;
+                    else
+                    {
+                        var s = val.ToString() ?? "";
+                        if (double.TryParse(s, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var num))
+                            row[i] = num;
+                        else
+                            row[i] = s;
+                    }
                 }
             }
             rows.Add(row);
