@@ -3,19 +3,19 @@
    ========================================================================== */
 
 :root {
-    /* Base Colors - Light Executive Theme (Default) */
-    --bg-app: #F8FAFC;
+    /* Base Colors - Light Executive Theme (Default - High Contrast for Projector) */
+    --bg-app: #F4F6F9;
     --bg-surface: #FFFFFF;
     --bg-surface-hover: #F1F5F9;
     --bg-muted: #F1F5F9;
-    --border-color: #E2E8F0;
-    --border-color-subtle: #EDF2F7;
+    --border-color: #CBD5E1;
+    --border-color-subtle: #E2E8F0;
 
     /* Brand & Accent Colors */
     --primary: #1D4ED8;
     --primary-hover: #1E40AF;
     --primary-light: #EFF6FF;
-    --primary-border: #BFDBFE;
+    --primary-border: #93C5FD;
     --navy-dark: #0F294A;
 
     /* Semantic Status */
@@ -35,10 +35,10 @@
     --amber-bg: #FFFBEB;
     --amber-border: #FDE68A;
 
-    /* Typography */
+    /* Typography - Deep high contrast slate */
     --text-primary: #0F172A;
-    --text-secondary: #475569;
-    --text-muted: #64748B;
+    --text-secondary: #334155;
+    --text-muted: #475569;
     --text-inverse: #FFFFFF;
 
     /* Shadows & Radii */
@@ -367,14 +367,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 28px;
+    padding: 0 36px 0 24px;
     backdrop-filter: blur(8px);
+    box-sizing: border-box;
 }
 
 .header-left {
     display: flex;
     align-items: center;
     gap: 16px;
+    min-width: 0;
 }
 
 .mobile-toggle {
@@ -392,18 +394,22 @@ body {
     font-weight: 800;
     letter-spacing: -0.3px;
     color: var(--text-primary);
+    white-space: nowrap;
 }
 
 .header-subtitle {
     font-size: 0.76rem;
     color: var(--text-muted);
     font-weight: 500;
+    white-space: nowrap;
 }
 
 .header-right {
     display: flex;
     align-items: center;
     gap: 14px;
+    flex-shrink: 0;
+    margin-right: 4px;
 }
 
 .status-pill {
@@ -417,6 +423,7 @@ body {
     color: var(--emerald);
     font-size: 0.78rem;
     font-weight: 700;
+    white-space: nowrap;
 }
 
 .status-pill.offline {
@@ -432,24 +439,28 @@ body {
     background: currentColor;
 }
 
-/* Theme Toggle Button */
+/* Theme Toggle Button - High Contrast & Safe Position */
 .theme-btn {
-    width: 36px;
-    height: 36px;
+    width: 40px;
+    height: 40px;
     border-radius: var(--radius-md);
-    background: var(--bg-muted);
-    border: 1px solid var(--border-color);
-    color: var(--text-secondary);
+    background: var(--bg-surface);
+    border: 1.5px solid var(--border-color);
+    color: var(--text-primary);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: var(--transition);
+    flex-shrink: 0;
+    box-shadow: var(--shadow-sm);
 }
 
 .theme-btn:hover {
-    background: var(--bg-surface-hover);
-    color: var(--text-primary);
+    background: var(--bg-muted);
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: scale(1.05);
 }
 
 .sun-icon { display: none; }
@@ -866,6 +877,7 @@ body {
     top: 0;
     z-index: 10;
     white-space: nowrap;
+    text-align: left;
 }
 
 .financial-table td {
@@ -873,18 +885,23 @@ body {
     border-bottom: 1px solid var(--border-color-subtle);
     color: var(--text-primary);
     transition: background-color 0.15s ease;
+    text-align: left;
 }
 
 .financial-table tbody tr:hover td {
     background-color: var(--table-row-hover);
 }
 
+.financial-table th.text-left, .financial-table td.text-left {
+    text-align: left !important;
+}
+
 .financial-table th.text-right, .financial-table td.text-right {
-    text-align: right;
+    text-align: right !important;
 }
 
 .financial-table .text-center {
-    text-align: center;
+    text-align: center !important;
 }
 
 .financial-table .negative-amount {
