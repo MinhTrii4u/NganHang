@@ -1,0 +1,13 @@
+# Oracle Database 23ai Free; dữ liệu lưu trong volume để không mất khi xoá container
+services:
+  oracle:
+    image: container-registry.oracle.com/database/free:latest
+    container_name: oracle23ai
+    ports:
+      - "1521:1521"
+    environment:
+      ORACLE_PWD: Oracle123
+    volumes:
+      - oracle_data:/opt/oracle/oradata
+volumes:
+  oracle_data:
