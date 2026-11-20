@@ -1,113 +1,189 @@
 @{
-    ViewData["Title"] = "Dashboard Quản trị Báo cáo";
+    ViewData["Title"] = "Cổng Báo cáo Tài chính Hợp nhất";
 }
 
 <!-- ========================================== -->
-<!-- TAB 1: BÁO CÁO HỢP NHẤT OLAP                -->
+<!-- TAB 1: TỔNG QUAN (DASHBOARD)               -->
 <!-- ========================================== -->
-<section class="tab-panel active" id="tab-report">
-    <!-- 4 Modern Executive KPI Cards -->
+<section class="tab-panel active" id="tab-dashboard">
+    <!-- 4 KPI Cards -->
     <div class="kpi-grid">
-        <!-- KPI 1: Tổng lợi nhuận ròng -->
+        <!-- KPI 1: Revenue -->
         <div class="kpi-card kpi-card-primary">
             <div class="kpi-icon-wrapper icon-emerald">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                    <polyline points="17 6 23 6 23 12"></polyline>
+                </svg>
+            </div>
+            <div class="kpi-details">
+                <span class="kpi-title">Tổng Thu Nhập</span>
+                <div class="kpi-num-row">
+                    <span class="kpi-number text-emerald" id="kpiRevenue">—</span>
+                    <span class="kpi-unit">triệu ₫</span>
+                </div>
+                <span class="kpi-meta" id="kpiRevenueMeta">Tổng toàn hệ thống</span>
+                <span class="kpi-change" id="kpiRevenueChange"></span>
+            </div>
+        </div>
+
+        <!-- KPI 2: Expense -->
+        <div class="kpi-card">
+            <div class="kpi-icon-wrapper icon-rose">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline>
+                    <polyline points="17 18 23 18 23 12"></polyline>
+                </svg>
+            </div>
+            <div class="kpi-details">
+                <span class="kpi-title">Tổng Chi Phí</span>
+                <div class="kpi-num-row">
+                    <span class="kpi-number text-rose" id="kpiExpense">—</span>
+                    <span class="kpi-unit">triệu ₫</span>
+                </div>
+                <span class="kpi-meta" id="kpiExpenseMeta">Tổng toàn hệ thống</span>
+                <span class="kpi-change" id="kpiExpenseChange"></span>
+            </div>
+        </div>
+
+        <!-- KPI 3: Net Income -->
+        <div class="kpi-card">
+            <div class="kpi-icon-wrapper icon-blue">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                     <line x1="12" y1="1" x2="12" y2="23"></line>
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                 </svg>
             </div>
             <div class="kpi-details">
-                <span class="kpi-title">Tổng Lợi Nhuận Ròng</span>
+                <span class="kpi-title">Lợi Nhuận Ròng</span>
                 <div class="kpi-num-row">
-                    <span class="kpi-number text-emerald" id="kpiNetIncome">—</span>
+                    <span class="kpi-number text-blue" id="kpiNetIncome">—</span>
                     <span class="kpi-unit">triệu ₫</span>
                 </div>
-                <span class="kpi-meta" id="kpiNetIncomeMeta">Tổng toàn hệ thống (Năm 2025)</span>
+                <span class="kpi-meta" id="kpiNetIncomeMeta">Thu nhập − Chi phí</span>
+                <span class="kpi-change" id="kpiNetIncomeChange"></span>
             </div>
         </div>
 
-        <!-- KPI 2: Số dòng kết quả -->
-        <div class="kpi-card">
-            <div class="kpi-icon-wrapper icon-blue">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
-            </div>
-            <div class="kpi-details">
-                <span class="kpi-title">Số Dòng Kết Quả</span>
-                <div class="kpi-num-row">
-                    <span class="kpi-number text-blue" id="kpiRowCount">—</span>
-                    <span class="kpi-unit">dòng</span>
-                </div>
-                <span class="kpi-meta" id="kpiRowCountMeta">Báo cáo ROLLUP đa cấp</span>
-            </div>
-        </div>
-
-        <!-- KPI 3: Thời gian thực thi Oracle -->
-        <div class="kpi-card">
+        <!-- KPI 4: Locked quarters (clickable → tab-lock) -->
+        <div class="kpi-card kpi-card-clickable" data-goto-tab="tab-lock" style="cursor:pointer;" title="Nhấn để xem chi tiết Khóa sổ Kế toán">
             <div class="kpi-icon-wrapper icon-purple">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <polyline points="12 6 12 12 16 14"></polyline>
-                </svg>
-            </div>
-            <div class="kpi-details">
-                <span class="kpi-title">Thời Gian Truy Vấn</span>
-                <div class="kpi-num-row">
-                    <span class="kpi-number text-purple" id="kpiExecTime">—</span>
-                    <span class="kpi-unit">ms</span>
-                </div>
-                <span class="kpi-meta">Oracle 23ai SYS_REFCURSOR</span>
-            </div>
-        </div>
-
-        <!-- KPI 4: Quý đang bị khóa -->
-        <div class="kpi-card">
-            <div class="kpi-icon-wrapper icon-rose">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                 </svg>
             </div>
             <div class="kpi-details">
-                <span class="kpi-title">Quý Đang Khóa</span>
+                <span class="kpi-title">Quý Đã Khóa Sổ</span>
                 <div class="kpi-num-row">
-                    <span class="kpi-number text-rose" id="kpiLockedCount">0</span>
-                    <span class="kpi-unit">quý</span>
+                    <span class="kpi-number text-purple" id="kpiLocked">0</span>
+                    <span class="kpi-unit">/ 8 quý</span>
                 </div>
-                <span class="kpi-meta" id="kpiLockedMeta">Chưa có quý nào bị khóa</span>
+                <span class="kpi-meta" id="kpiLockedMeta">Nhấn để xem chi tiết</span>
             </div>
         </div>
     </div>
 
-    <!-- Unified Single-Line Control Bar -->
+    <!-- Dashboard Control Bar -->
+    <div class="control-bar-card">
+        <div class="control-left">
+            <span class="control-label">Năm tài chính:</span>
+            <div class="year-select-wrap">
+                <select id="dashYear" class="custom-select">
+                    <option value="2025" selected>2025</option>
+                    <option value="2024">2024</option>
+                </select>
+            </div>
+        </div>
+        <div class="control-right">
+            <button type="button" class="btn btn-primary" id="btnRefreshDash" title="Làm mới dữ liệu Dashboard">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                <span>Làm mới</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Dashboard Charts Grid: 3 panels -->
+    <div class="chart-grid-dashboard">
+        <!-- Chart 1: Quarterly Combo -->
+        <div class="panel-card chart-panel">
+            <div class="panel-header">
+                <div class="panel-title-group">
+                    <h3 class="panel-title">Xu hướng Thu – Chi – Lợi nhuận theo Quý</h3>
+                    <span class="panel-subtitle">Biểu đồ kết hợp cột + đường</span>
+                </div>
+            </div>
+            <div class="chart-content">
+                <div class="chart-canvas-container">
+                    <canvas id="chartQuarterly"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 2: Product Group Donut -->
+        <div class="panel-card chart-panel">
+            <div class="panel-header">
+                <div class="panel-title-group">
+                    <h3 class="panel-title">Cơ cấu Lợi nhuận theo Nhóm SP</h3>
+                    <span class="panel-subtitle">Biểu đồ tròn Donut</span>
+                </div>
+            </div>
+            <div class="chart-content">
+                <div class="chart-canvas-container">
+                    <canvas id="chartProductGroup"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart 3: Branch Ranking Horizontal Bar -->
+        <div class="panel-card chart-panel">
+            <div class="panel-header">
+                <div class="panel-title-group">
+                    <h3 class="panel-title">Xếp hạng Lợi nhuận theo Chi nhánh</h3>
+                    <span class="panel-subtitle">Biểu đồ thanh ngang</span>
+                </div>
+            </div>
+            <div class="chart-content">
+                <div class="chart-canvas-container">
+                    <canvas id="chartBranchRanking"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ========================================== -->
+<!-- TAB 2: BÁO CÁO OLAP                        -->
+<!-- ========================================== -->
+<section class="tab-panel" id="tab-report">
+    <!-- Control Bar (mode buttons + year + actions) -->
     <div class="control-bar-card">
         <div class="control-left">
             <span class="control-label">Chế độ phân tích:</span>
             <div class="segmented-control" id="modeSegments">
                 <button type="button" class="segment-btn active" data-mode="ROLLUP">
                     <span class="seg-title">ROLLUP</span>
-                    <span class="seg-badge">Phân cấp</span>
+                    <span class="seg-badge">Hợp nhất Phân cấp</span>
                 </button>
                 <button type="button" class="segment-btn" data-mode="CUBE">
                     <span class="seg-title">CUBE</span>
-                    <span class="seg-badge">Đa chiều</span>
+                    <span class="seg-badge">Phân tích Đa chiều</span>
                 </button>
                 <button type="button" class="segment-btn" data-mode="SETS">
                     <span class="seg-title">GROUPING SETS</span>
-                    <span class="seg-badge">Chọn lọc</span>
+                    <span class="seg-badge">Tổng hợp Chọn lọc</span>
                 </button>
                 <button type="button" class="segment-btn" data-mode="PIVOT">
                     <span class="seg-title">PIVOT</span>
-                    <span class="seg-badge">Quý thành cột</span>
+                    <span class="seg-badge">So sánh Quý</span>
                 </button>
                 <button type="button" class="segment-btn" data-mode="PIVOT_DYN">
                     <span class="seg-title">PIVOT Động</span>
-                    <span class="seg-badge">Nhóm SP động</span>
+                    <span class="seg-badge">Cơ cấu Sản phẩm</span>
                 </button>
             </div>
         </div>
@@ -129,6 +205,36 @@
                 </svg>
                 <span>Làm mới</span>
             </button>
+
+            <button type="button" class="btn btn-outline" id="btnPrintReport" title="In báo cáo">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                    <rect x="6" y="14" width="12" height="8"></rect>
+                </svg>
+                <span>In</span>
+            </button>
+
+            <button type="button" class="btn btn-outline" id="btnToggleSql" title="Hiện/Ẩn câu SQL">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="16 18 22 12 16 6"></polyline>
+                    <polyline points="8 6 2 12 8 18"></polyline>
+                </svg>
+                <span>SQL</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- SQL Info Panel (hidden by default) -->
+    <div class="panel-card" id="sqlInfoPanel" style="display:none;">
+        <div class="panel-header">
+            <div class="panel-title-group">
+                <h3 class="panel-title">Câu lệnh SQL đang thực thi</h3>
+                <span class="panel-subtitle">Chế độ phân tích hiện tại từ Oracle 23ai</span>
+            </div>
+        </div>
+        <div class="panel-body">
+            <pre class="sql-display" id="sqlDisplay" style="white-space:pre-wrap; font-family:monospace; font-size:0.85rem; padding:1rem; background:var(--surface-secondary); border-radius:8px; overflow-x:auto;"></pre>
         </div>
     </div>
 
@@ -159,7 +265,7 @@
             <div class="panel-title-group">
                 <div class="title-with-badge">
                     <h3 class="panel-title">Dữ Liệu Chi Tiết Báo Cáo</h3>
-                    <span class="count-badge" id="tableRowCountBadge">49 dòng</span>
+                    <span class="count-badge" id="tableRowCountBadge">0 dòng</span>
                 </div>
                 <span class="panel-subtitle">Dữ liệu hợp nhất từ package <code>pkg_bank_report.fn_report</code></span>
             </div>
@@ -210,14 +316,233 @@
 </section>
 
 <!-- ========================================== -->
-<!-- TAB 2: CHỐT KỲ & KIỂM SOÁT KHÓA            -->
+<!-- TAB 3: SỔ GIAO DỊCH                        -->
+<!-- ========================================== -->
+<section class="tab-panel" id="tab-txn">
+    <div class="panel-intro">
+        <h2 class="intro-title">Sổ Giao Dịch &amp; Nạp Dữ Liệu Bảng Rộng (UNPIVOT)</h2>
+        <p class="intro-desc">
+            Quản lý giao dịch phát sinh qua thủ tục <code>sp_add_txn</code> và Nạp dữ liệu Excel quý qua mệnh đề <code>UNPIVOT</code> trong <code>sp_load_wide</code>.
+        </p>
+    </div>
+
+    <!-- Sub-tabs -->
+    <div class="sub-tab-bar">
+        <button type="button" class="sub-tab-btn active" data-subtab="subtab-txn-list">Danh sách Giao dịch</button>
+        <button type="button" class="sub-tab-btn" data-subtab="subtab-txn-wide">Nạp bảng rộng UNPIVOT</button>
+    </div>
+
+    <!-- Sub-tab 1: Transaction List -->
+    <div class="sub-tab-panel active" id="subtab-txn-list">
+        <!-- Filter Bar -->
+        <div class="control-bar-card">
+            <div class="control-left" style="flex-wrap:wrap; gap:0.5rem;">
+                <div class="year-select-wrap">
+                    <label for="txnFilterBranch" class="control-label">Chi nhánh:</label>
+                    <select id="txnFilterBranch" class="custom-select">
+                        <option value="">Tất cả</option>
+                    </select>
+                </div>
+                <div class="year-select-wrap">
+                    <label for="txnFilterYear" class="control-label">Năm:</label>
+                    <select id="txnFilterYear" class="custom-select">
+                        <option value="" selected>Tất cả</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                    </select>
+                </div>
+                <div class="year-select-wrap">
+                    <label for="txnFilterQuarter" class="control-label">Quý:</label>
+                    <select id="txnFilterQuarter" class="custom-select">
+                        <option value="" selected>Tất cả</option>
+                        <option value="Q1">Q1</option>
+                        <option value="Q2">Q2</option>
+                        <option value="Q3">Q3</option>
+                        <option value="Q4">Q4</option>
+                    </select>
+                </div>
+                <div class="search-input-wrap">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" class="search-input" id="txnSearchInput" placeholder="Tìm sản phẩm, khoản mục..." />
+                </div>
+            </div>
+            <div class="control-right">
+                <button type="button" class="btn btn-primary" id="btnSearchTxn">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <span>Tìm kiếm</span>
+                </button>
+                <button type="button" class="btn btn-success" id="btnOpenAddTxn">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    <span>Thêm giao dịch</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Transaction Table -->
+        <div class="panel-card table-panel">
+            <div class="table-scroll-wrap">
+                <table class="financial-table" id="txnTable">
+                    <thead>
+                        <tr>
+                            <th>Fact ID</th>
+                            <th>Chi nhánh</th>
+                            <th>Vùng</th>
+                            <th>Sản phẩm</th>
+                            <th>Nhóm SP</th>
+                            <th>Khoản mục</th>
+                            <th>Năm</th>
+                            <th>Quý</th>
+                            <th class="text-right">Số tiền</th>
+                            <th class="text-right">Ròng</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="txnTbody">
+                        <tr><td colspan="11" class="text-center text-muted">Nhấn "Tìm kiếm" để tải dữ liệu giao dịch</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <!-- Pagination -->
+            <div class="pagination-bar" id="txnPagination">
+                <!-- Rendered by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Sub-tab 2: Wide Load UNPIVOT -->
+    <div class="sub-tab-panel" id="subtab-txn-wide">
+        <div class="panel-card">
+            <div class="panel-header">
+                <div>
+                    <h3 class="panel-title">Nạp Bảng Rộng Excel (UNPIVOT)</h3>
+                    <span class="panel-subtitle">Chèn vào <code>stg_income_wide</code> và gọi <code>sp_load_wide</code></span>
+                </div>
+            </div>
+            <div class="panel-body">
+                <p class="card-hint-text">
+                    Mô phỏng file Excel tổng hợp theo 4 quý. Nhập số liệu cho từng quý; quý nào bỏ trống (NULL) sẽ được mệnh đề <code>UNPIVOT</code> của Oracle tự động loại bỏ.
+                </p>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="wideBranch">Chi nhánh</label>
+                        <select id="wideBranch" class="custom-select full-width"></select>
+                    </div>
+                    <div class="form-field">
+                        <label for="wideProduct">Sản phẩm</label>
+                        <select id="wideProduct" class="custom-select full-width"></select>
+                    </div>
+                </div>
+
+                <div class="form-grid mt-3">
+                    <div class="form-field">
+                        <label for="wideItem">Khoản mục</label>
+                        <select id="wideItem" class="custom-select full-width"></select>
+                    </div>
+                    <div class="form-field">
+                        <label for="wideYear">Năm tài chính</label>
+                        <select id="wideYear" class="custom-select full-width">
+                            <option value="2025" selected>2025</option>
+                            <option value="2024">2024</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="quarters-input-grid mt-3">
+                    <div class="form-field">
+                        <label for="wideQ1">Quý 1</label>
+                        <input type="number" id="wideQ1" class="custom-input full-width" placeholder="Ví dụ: 120.5" step="0.01" />
+                    </div>
+                    <div class="form-field">
+                        <label for="wideQ2">Quý 2</label>
+                        <input type="number" id="wideQ2" class="custom-input full-width" placeholder="Ví dụ: 150.0" step="0.01" />
+                    </div>
+                    <div class="form-field">
+                        <label for="wideQ3">Quý 3</label>
+                        <input type="number" id="wideQ3" class="custom-input full-width" placeholder="Ví dụ: 180.2" step="0.01" />
+                    </div>
+                    <div class="form-field">
+                        <label for="wideQ4">Quý 4</label>
+                        <input type="number" id="wideQ4" class="custom-input full-width" placeholder="Bỏ trống = NULL" step="0.01" />
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-success full-width mt-4" id="btnLoadWide">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <span>Thực Hiện UNPIVOT &amp; Nạp Vào Fact</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ========================================== -->
+<!-- TAB 4: KHÓA SỔ KẾ TOÁN                     -->
 <!-- ========================================== -->
 <section class="tab-panel" id="tab-lock">
     <div class="panel-intro">
-        <h2 class="intro-title">Quản lý Chốt kỳ & Khóa Dữ liệu Tài chính</h2>
+        <h2 class="intro-title">Quản lý Chốt kỳ &amp; Khóa Dữ liệu Tài chính</h2>
         <p class="intro-desc">
             Khi thực hiện Chốt quý, hệ thống tự động khóa <code>LOCK TABLE fact_income IN SHARE MODE WAIT 10</code> và kích hoạt Trigger bảo vệ <code>trg_fact_period_guard</code> để ngăn chặn tuyệt đối mọi hành vi thêm, sửa hoặc xóa dữ liệu của quý đã khóa.
         </p>
+    </div>
+
+    <!-- 8-Quarter Visual Grid -->
+    <div class="panel-card mb-4">
+        <div class="panel-header">
+            <div>
+                <h3 class="panel-title">Trạng Thái 8 Quý (2024 – 2025)</h3>
+                <span class="panel-subtitle">Nhấn vào quý để xem chi tiết · Xanh = Mở · Đỏ = Đã khóa</span>
+            </div>
+            <button type="button" class="btn btn-xs btn-outline" id="btnRefreshQuarterGrid">Làm mới</button>
+        </div>
+        <div class="panel-body">
+            <div class="quarter-grid" id="quarterGrid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:0.75rem;">
+                <!-- 2024 Q1-Q4 -->
+                <div class="quarter-cell" data-year="2024" data-quarter="Q1">
+                    <span class="q-label">2024 Q1</span>
+                    <span class="q-status q-open">Mở</span>
+                </div>
+                <div class="quarter-cell" data-year="2024" data-quarter="Q2">
+                    <span class="q-label">2024 Q2</span>
+                    <span class="q-status q-open">Mở</span>
+                </div>
+                <div class="quarter-cell" data-year="2024" data-quarter="Q3">
+                    <span class="q-label">2024 Q3</span>
+                    <span class="q-status q-open">Mở</span>
+                </div>
+                <div class="quarter-cell" data-year="2024" data-quarter="Q4">
+                    <span class="q-label">2024 Q4</span>
+                    <span class="q-status q-open">Mở</span>
+                </div>
+                <!-- 2025 Q1-Q4 -->
+                <div class="quarter-cell" data-year="2025" data-quarter="Q1">
+                    <span class="q-label">2025 Q1</span>
+                    <span class="q-status q-open">Mở</span>
+                </div>
+                <div class="quarter-cell" data-year="2025" data-quarter="Q2">
+                    <span class="q-label">2025 Q2</span>
+                    <span class="q-status q-open">Mở</span>
+                </div>
+                <div class="quarter-cell" data-year="2025" data-quarter="Q3">
+                    <span class="q-label">2025 Q3</span>
+                    <span class="q-status q-open">Mở</span>
+                </div>
+                <div class="quarter-cell" data-year="2025" data-quarter="Q4">
+                    <span class="q-label">2025 Q4</span>
+                    <span class="q-status q-open">Mở</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="grid-2col">
@@ -319,267 +644,228 @@
 </section>
 
 <!-- ========================================== -->
-<!-- TAB 3: NHẬP GIAO DỊCH & UNPIVOT             -->
+<!-- TAB 5: DANH MỤC & KIỂM TOÁN                -->
 <!-- ========================================== -->
-<section class="tab-panel" id="tab-txn">
+<section class="tab-panel" id="tab-audit">
     <div class="panel-intro">
-        <h2 class="intro-title">Nhập Giao Dịch & Nạp Dữ Liệu Bảng Rộng (UNPIVOT)</h2>
+        <h2 class="intro-title">Danh Mục Hệ Thống, Kiểm Toán &amp; Oracle 23ai</h2>
         <p class="intro-desc">
-            Trải nghiệm hai luồng nghiệp vụ: Nhập giao dịch phát sinh qua thủ tục <code>sp_add_txn</code> (có kiểm soát lỗi nghiệp vụ và trigger) và Nạp dữ liệu Excel quý qua mệnh đề <code>UNPIVOT</code> trong <code>sp_load_wide</code>.
+            Quản lý danh mục chiều (Dimension), nhật ký kiểm toán Trigger <code>trg_fact_audit</code>, kết quả kiểm thử tự động và thông tin kết nối Oracle 23ai.
         </p>
     </div>
 
-    <div class="grid-2col">
-        <!-- Card 1: Nhập giao dịch đơn lẻ -->
-        <div class="panel-card">
-            <div class="panel-header">
-                <div>
-                    <h3 class="panel-title">1. Nhập Giao Dịch Đơn Lẻ</h3>
-                    <span class="panel-subtitle">Gọi <code>pkg_bank_report.sp_add_txn</code></span>
-                </div>
-                <label class="test-mode-toggle" title="Bật để demo lỗi ORA-20003, ORA-20007 khi báo cáo">
-                    <input type="checkbox" id="toggleTestMode" />
-                    <span class="toggle-switch"></span>
-                    <span class="toggle-text">Test biên lỗi Oracle</span>
-                </label>
-            </div>
-            <div class="panel-body">
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label for="txnBranch">Chi nhánh</label>
-                        <select id="txnBranch" class="custom-select full-width"></select>
-                    </div>
-                    <div class="form-field">
-                        <label for="txnProduct">Sản phẩm</label>
-                        <select id="txnProduct" class="custom-select full-width"></select>
-                    </div>
-                </div>
-
-                <div class="form-grid mt-3">
-                    <div class="form-field">
-                        <label for="txnItem">Khoản mục thu / chi</label>
-                        <select id="txnItem" class="custom-select full-width"></select>
-                    </div>
-                    <div class="form-field">
-                        <label for="txnPeriod">Kỳ báo cáo (YYYYMM)</label>
-                        <input type="number" id="txnPeriod" class="custom-input full-width" value="202503" />
-                        <small class="field-hint" id="txnPeriodHint">Gợi ý: Nhập <code>202402</code> để test lỗi nếu Q1-2024 đang chốt</small>
-                    </div>
-                </div>
-
-                <div class="form-field mt-3">
-                    <label for="txnAmount">Số tiền (triệu đồng)</label>
-                    <input type="number" id="txnAmount" class="custom-input full-width" value="100" step="0.01" />
-                    <small class="field-hint" id="txnAmountHint">Gợi ý: Nhập <code>-5</code> để test lỗi ORA-20007</small>
-                </div>
-
-                <button type="button" class="btn btn-primary full-width mt-4" id="btnAddTxn">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    <span>Gửi Giao Dịch Vào Oracle</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Card 2: Nạp bảng rộng UNPIVOT -->
-        <div class="panel-card">
-            <div class="panel-header">
-                <div>
-                    <h3 class="panel-title">2. Nạp Bảng Rộng Excel (UNPIVOT)</h3>
-                    <span class="panel-subtitle">Chèn vào <code>stg_income_wide</code> và gọi <code>sp_load_wide</code></span>
-                </div>
-            </div>
-            <div class="panel-body">
-                <p class="card-hint-text">
-                    Mô phỏng file Excel tổng hợp theo 4 quý. Nhập số liệu cho từng quý; quý nào bỏ trống (NULL) sẽ được mệnh đề <code>UNPIVOT</code> của Oracle tự động loại bỏ.
-                </p>
-
-                <div class="form-grid">
-                    <div class="form-field">
-                        <label for="wideBranch">Chi nhánh</label>
-                        <select id="wideBranch" class="custom-select full-width"></select>
-                    </div>
-                    <div class="form-field">
-                        <label for="wideProduct">Sản phẩm</label>
-                        <select id="wideProduct" class="custom-select full-width"></select>
-                    </div>
-                </div>
-
-                <div class="form-grid mt-3">
-                    <div class="form-field">
-                        <label for="wideItem">Khoản mục</label>
-                        <select id="wideItem" class="custom-select full-width"></select>
-                    </div>
-                    <div class="form-field">
-                        <label for="wideYear">Năm tài chính</label>
-                        <select id="wideYear" class="custom-select full-width">
-                            <option value="2025" selected>2025</option>
-                            <option value="2024">2024</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="quarters-input-grid mt-3">
-                    <div class="form-field">
-                        <label for="wideQ1">Quý 1</label>
-                        <input type="number" id="wideQ1" class="custom-input full-width" placeholder="Ví dụ: 120.5" step="0.01" />
-                    </div>
-                    <div class="form-field">
-                        <label for="wideQ2">Quý 2</label>
-                        <input type="number" id="wideQ2" class="custom-input full-width" placeholder="Ví dụ: 150.0" step="0.01" />
-                    </div>
-                    <div class="form-field">
-                        <label for="wideQ3">Quý 3</label>
-                        <input type="number" id="wideQ3" class="custom-input full-width" placeholder="Ví dụ: 180.2" step="0.01" />
-                    </div>
-                    <div class="form-field">
-                        <label for="wideQ4">Quý 4</label>
-                        <input type="number" id="wideQ4" class="custom-input full-width" placeholder="Bỏ trống = NULL" step="0.01" />
-                    </div>
-                </div>
-
-                <button type="button" class="btn btn-success full-width mt-4" id="btnLoadWide">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>
-                    </svg>
-                    <span>Thực Hiện UNPIVOT & Nạp Vào Fact</span>
-                </button>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- ========================================== -->
-<!-- TAB 4: NHẬT KÝ & HỆ THỐNG                   -->
-<!-- ========================================== -->
-<section class="tab-panel" id="tab-logs">
-    <div class="panel-intro">
-        <h2 class="intro-title">Nhật Ký Kiểm Toán & Trạng Thái Hệ Thống</h2>
-        <p class="intro-desc">
-            Theo dõi nhật ký kiểm toán Trigger <code>trg_fact_audit</code>, kết quả 13 kịch bản kiểm thử tự động của Oracle 23ai (bảng <code>test_log</code>), và công cụ tra cứu lợi nhuận theo hàm <code>fn_net_income</code>.
-        </p>
+    <!-- Sub-tabs -->
+    <div class="sub-tab-bar">
+        <button type="button" class="sub-tab-btn active" data-subtab="subtab-dim">Danh mục Hệ thống</button>
+        <button type="button" class="sub-tab-btn" data-subtab="subtab-audit-log">Nhật ký Kiểm toán</button>
+        <button type="button" class="sub-tab-btn" data-subtab="subtab-system">Kiểm thử &amp; Oracle 23ai</button>
     </div>
 
-    <!-- Tra cứu nhanh Lợi nhuận ròng -->
-    <div class="panel-card mb-4">
-        <div class="panel-header">
-            <div>
-                <h3 class="panel-title">Tra Cứu Lợi Nhuận Ròng Chi Nhánh</h3>
-                <span class="panel-subtitle">Gọi hàm <code>pkg_bank_report.fn_net_income(p_branch_id, p_year, p_quarter)</code></span>
-            </div>
-        </div>
-        <div class="panel-body">
-            <div class="quick-lookup-grid">
-                <div class="form-field">
-                    <label for="niBranch">Chi nhánh</label>
-                    <select id="niBranch" class="custom-select full-width"></select>
-                </div>
-                <div class="form-field">
-                    <label for="niYear">Năm</label>
-                    <select id="niYear" class="custom-select full-width">
-                        <option value="2025" selected>2025</option>
-                        <option value="2024">2024</option>
-                    </select>
-                </div>
-                <div class="form-field">
-                    <label for="niQuarter">Quý</label>
-                    <select id="niQuarter" class="custom-select full-width">
-                        <option value="Q1" selected>Q1</option>
-                        <option value="Q2">Q2</option>
-                        <option value="Q3">Q3</option>
-                        <option value="Q4">Q4</option>
-                    </select>
-                </div>
-                <div class="form-field lookup-btn-field">
-                    <button type="button" class="btn btn-primary full-width" id="btnNetIncome">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                        <span>Tính Lợi Nhuận</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="lookup-result-box" id="niResultBox" style="display:none;">
-                <div class="res-title">Kết quả tính toán từ Oracle 23ai:</div>
-                <div class="res-value" id="niResultValue">—</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="grid-2col">
-        <!-- Bảng Test Log Oracle -->
-        <div class="panel-card">
+    <!-- Sub-tab 1: Dimension Tables -->
+    <div class="sub-tab-panel active" id="subtab-dim">
+        <!-- dim_branch -->
+        <div class="panel-card mb-4">
             <div class="panel-header">
                 <div>
-                    <h3 class="panel-title">Kết Quả Kiểm Thử Oracle 23ai (test_log)</h3>
-                    <span class="panel-subtitle">13 kịch bản kiểm thử T1–T9b tự động từ CSDL</span>
+                    <h3 class="panel-title">Danh Mục Chi Nhánh (dim_branch)</h3>
+                    <span class="panel-subtitle">Chi nhánh, vùng miền, khu vực</span>
                 </div>
-                <button type="button" class="btn btn-xs btn-outline" id="btnRefreshTestLog">Làm mới</button>
+                <button type="button" class="btn btn-xs btn-outline" id="btnRefreshDimBranch">Làm mới</button>
             </div>
-            <div class="table-scroll-wrap max-h-360">
-                <table class="financial-table">
+            <div class="table-scroll-wrap max-h-300">
+                <table class="financial-table" id="dimBranchTable">
                     <thead>
                         <tr>
-                            <th style="width: 70px;">Mã</th>
-                            <th>Kết Quả Thực Tế / Thông Báo Lỗi</th>
+                            <th>ID</th>
+                            <th>Tên Chi Nhánh</th>
+                            <th>Vùng</th>
                         </tr>
                     </thead>
-                    <tbody id="testLogBody">
-                        <tr><td colspan="2" class="text-center text-muted">Đang tải kịch bản kiểm thử...</td></tr>
+                    <tbody>
+                        <tr><td colspan="3" class="text-center text-muted">Đang tải...</td></tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <!-- Trạng thái hệ thống -->
+        <!-- dim_product -->
+        <div class="panel-card mb-4">
+            <div class="panel-header">
+                <div>
+                    <h3 class="panel-title">Danh Mục Sản Phẩm (dim_product)</h3>
+                    <span class="panel-subtitle">Sản phẩm tài chính và nhóm sản phẩm</span>
+                </div>
+                <button type="button" class="btn btn-xs btn-outline" id="btnRefreshDimProduct">Làm mới</button>
+            </div>
+            <div class="table-scroll-wrap max-h-300">
+                <table class="financial-table" id="dimProductTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tên Sản Phẩm</th>
+                            <th>Nhóm SP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="3" class="text-center text-muted">Đang tải...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- dim_income_item -->
         <div class="panel-card">
             <div class="panel-header">
                 <div>
-                    <h3 class="panel-title">Thông Tin Kết Nối Cơ Sở Dữ Liệu</h3>
-                    <span class="panel-subtitle">Thông số runtime kết nối container Docker</span>
+                    <h3 class="panel-title">Danh Mục Khoản Mục (dim_income_item)</h3>
+                    <span class="panel-subtitle">Khoản mục thu nhập / chi phí với hệ số sign_val</span>
                 </div>
-                <button type="button" class="btn btn-xs btn-outline" id="btnRefreshStatus">Làm mới</button>
+                <button type="button" class="btn btn-xs btn-outline" id="btnRefreshDimItem">Làm mới</button>
             </div>
-            <div class="panel-body" id="systemStatusDetails">
-                <div class="status-loading">Đang tải thông tin hệ thống...</div>
+            <div class="table-scroll-wrap max-h-300">
+                <table class="financial-table" id="dimItemTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Tên Khoản Mục</th>
+                            <th>Sign Val</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="3" class="text-center text-muted">Đang tải...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
-    <!-- Bảng Audit Log -->
-    <div class="panel-card mt-4">
-        <div class="panel-header">
-            <div>
-                <h3 class="panel-title">Nhật Ký Kiểm Toán Biến Động (audit_log)</h3>
-                <span class="panel-subtitle">Tự động ghi lại qua Trigger <code>trg_fact_audit</code> khi có UPDATE/DELETE</span>
+    <!-- Sub-tab 2: Audit Log -->
+    <div class="sub-tab-panel" id="subtab-audit-log">
+        <div class="panel-card">
+            <div class="panel-header">
+                <div>
+                    <h3 class="panel-title">Nhật Ký Kiểm Toán Biến Động (audit_log)</h3>
+                    <span class="panel-subtitle">Tự động ghi lại qua Trigger <code>trg_fact_audit</code> khi có UPDATE/DELETE</span>
+                </div>
+                <button type="button" class="btn btn-xs btn-outline" id="btnRefreshAudit">Làm mới</button>
             </div>
-            <button type="button" class="btn btn-xs btn-outline" id="btnRefreshAudit">Làm mới</button>
+            <div class="table-scroll-wrap max-h-360">
+                <table class="financial-table">
+                    <thead>
+                        <tr>
+                            <th>Log ID</th>
+                            <th>Hành Động</th>
+                            <th>Fact ID</th>
+                            <th class="text-right">Số Tiền Cũ</th>
+                            <th class="text-right">Số Tiền Mới</th>
+                            <th>Người Thực Hiện</th>
+                            <th>Thời Điểm</th>
+                        </tr>
+                    </thead>
+                    <tbody id="auditLogBody">
+                        <tr><td colspan="7" class="text-center text-muted">Đang tải nhật ký kiểm toán...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div class="table-scroll-wrap max-h-360">
-            <table class="financial-table">
-                <thead>
-                    <tr>
-                        <th>Log ID</th>
-                        <th>Hành Động</th>
-                        <th>Fact ID</th>
-                        <th class="text-right">Số Tiền Cũ</th>
-                        <th class="text-right">Số Tiền Mới</th>
-                        <th>Người Thực Hiện</th>
-                        <th>Thời Điểm</th>
-                    </tr>
-                </thead>
-                <tbody id="auditLogBody">
-                    <tr><td colspan="7" class="text-center text-muted">Đang tải nhật ký kiểm toán...</td></tr>
-                </tbody>
-            </table>
+    </div>
+
+    <!-- Sub-tab 3: Test & System -->
+    <div class="sub-tab-panel" id="subtab-system">
+        <div class="grid-2col">
+            <!-- Test Log Oracle -->
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <h3 class="panel-title">Kết Quả Kiểm Thử Oracle 23ai (test_log)</h3>
+                        <span class="panel-subtitle">13 kịch bản kiểm thử T1–T9b tự động từ CSDL</span>
+                    </div>
+                    <button type="button" class="btn btn-xs btn-outline" id="btnRefreshTestLog">Làm mới</button>
+                </div>
+                <div class="table-scroll-wrap max-h-360">
+                    <table class="financial-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 70px;">Mã</th>
+                                <th>Kết Quả Thực Tế / Thông Báo Lỗi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="testLogBody">
+                            <tr><td colspan="2" class="text-center text-muted">Đang tải kịch bản kiểm thử...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- System Status -->
+            <div class="panel-card">
+                <div class="panel-header">
+                    <div>
+                        <h3 class="panel-title">Thông Tin Kết Nối Cơ Sở Dữ Liệu</h3>
+                        <span class="panel-subtitle">Thông số runtime kết nối container Docker</span>
+                    </div>
+                    <button type="button" class="btn btn-xs btn-outline" id="btnRefreshStatus">Làm mới</button>
+                </div>
+                <div class="panel-body" id="systemStatusDetails">
+                    <div class="status-loading">Đang tải thông tin hệ thống...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tra cứu nhanh Lợi nhuận ròng -->
+        <div class="panel-card mt-4">
+            <div class="panel-header">
+                <div>
+                    <h3 class="panel-title">Tra Cứu Lợi Nhuận Ròng Chi Nhánh</h3>
+                    <span class="panel-subtitle">Gọi hàm <code>pkg_bank_report.fn_net_income(p_branch_id, p_year, p_quarter)</code></span>
+                </div>
+            </div>
+            <div class="panel-body">
+                <div class="quick-lookup-grid">
+                    <div class="form-field">
+                        <label for="niBranch">Chi nhánh</label>
+                        <select id="niBranch" class="custom-select full-width"></select>
+                    </div>
+                    <div class="form-field">
+                        <label for="niYear">Năm</label>
+                        <select id="niYear" class="custom-select full-width">
+                            <option value="2025" selected>2025</option>
+                            <option value="2024">2024</option>
+                        </select>
+                    </div>
+                    <div class="form-field">
+                        <label for="niQuarter">Quý</label>
+                        <select id="niQuarter" class="custom-select full-width">
+                            <option value="Q1" selected>Q1</option>
+                            <option value="Q2">Q2</option>
+                            <option value="Q3">Q3</option>
+                            <option value="Q4">Q4</option>
+                        </select>
+                    </div>
+                    <div class="form-field lookup-btn-field">
+                        <button type="button" class="btn btn-primary full-width" id="btnNetIncome">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                            <span>Tính Lợi Nhuận</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="lookup-result-box" id="niResultBox" style="display:none;">
+                    <div class="res-title">Kết quả tính toán từ Oracle 23ai:</div>
+                    <div class="res-value" id="niResultValue">—</div>
+                </div>
+            </div>
         </div>
     </div>
 </section>
 
-<!-- Light Executive Modal Confirm -->
+<!-- ========================================== -->
+<!-- MODALS                                      -->
+<!-- ========================================== -->
+
+<!-- Confirm Modal (kept from original) -->
 <div class="modal-backdrop" id="confirmModal">
     <div class="modal-box">
         <div class="modal-header">
@@ -598,5 +884,113 @@
             <button type="button" class="btn btn-outline" id="confirmCancel">Hủy Bỏ</button>
             <button type="button" class="btn btn-danger" id="confirmOk">Xác Nhận Thực Hiện</button>
         </div>
+    </div>
+</div>
+
+<!-- Add Transaction Modal -->
+<div class="modal-backdrop" id="addTxnModal">
+    <div class="modal-box" style="max-width:520px;">
+        <div class="modal-header">
+            <div class="modal-icon-badge" style="background:var(--accent-success, #22c55e)20;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-success, #22c55e)" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            </div>
+            <div>
+                <h4 class="modal-title">Thêm Giao Dịch Mới</h4>
+                <p class="modal-desc">Nhập thông tin giao dịch phát sinh qua <code>sp_add_txn</code></p>
+            </div>
+            <button type="button" class="btn btn-sm btn-ghost modal-close-btn" id="addTxnClose" title="Đóng">&times;</button>
+        </div>
+        <div class="modal-body" style="padding:1rem 1.5rem;">
+            <div class="form-grid">
+                <div class="form-field">
+                    <label for="addTxnBranch">Chi nhánh</label>
+                    <select id="addTxnBranch" class="custom-select full-width"></select>
+                </div>
+                <div class="form-field">
+                    <label for="addTxnProduct">Sản phẩm</label>
+                    <select id="addTxnProduct" class="custom-select full-width"></select>
+                </div>
+            </div>
+            <div class="form-grid mt-3">
+                <div class="form-field">
+                    <label for="addTxnItem">Khoản mục thu / chi</label>
+                    <select id="addTxnItem" class="custom-select full-width"></select>
+                </div>
+                <div class="form-field">
+                    <label for="addTxnPeriod">Kỳ báo cáo (YYYYMM)</label>
+                    <input type="number" id="addTxnPeriod" class="custom-input full-width" value="202503" />
+                </div>
+            </div>
+            <div class="form-field mt-3">
+                <label for="addTxnAmount">Số tiền (triệu đồng)</label>
+                <input type="number" id="addTxnAmount" class="custom-input full-width" value="100" step="0.01" />
+            </div>
+            <div class="mt-3" style="display:flex; align-items:center; gap:0.5rem;">
+                <label class="test-mode-toggle" title="Bật để demo lỗi ORA-20003, ORA-20007">
+                    <input type="checkbox" id="toggleTestMode" />
+                    <span class="toggle-switch"></span>
+                    <span class="toggle-text">Test biên lỗi Oracle</span>
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="addTxnCancel">Hủy Bỏ</button>
+            <button type="button" class="btn btn-primary" id="addTxnSubmit">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Gửi Giao Dịch</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Amount Modal -->
+<div class="modal-backdrop" id="editAmountModal">
+    <div class="modal-box" style="max-width:400px;">
+        <div class="modal-header">
+            <div class="modal-icon-badge">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+            </div>
+            <div>
+                <h4 class="modal-title">Sửa Số Tiền Giao Dịch</h4>
+                <p class="modal-desc">Cập nhật số tiền cho fact_income</p>
+            </div>
+        </div>
+        <div class="modal-body" style="padding:1rem 1.5rem;">
+            <div class="form-field">
+                <label for="editFactId">Fact ID</label>
+                <input type="number" id="editFactId" class="custom-input full-width" readonly />
+            </div>
+            <div class="form-field mt-3">
+                <label for="editNewAmount">Số tiền mới (triệu đồng)</label>
+                <input type="number" id="editNewAmount" class="custom-input full-width" step="0.01" />
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-outline" id="editAmountCancel">Hủy Bỏ</button>
+            <button type="button" class="btn btn-primary" id="editAmountSave">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                    <polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                <span>Lưu</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Print Header Template (hidden, shown only in print mode) -->
+<div id="printHeader" style="display:none;">
+    <div style="text-align:center; border-bottom:2px solid #333; padding-bottom:12px; margin-bottom:16px;">
+        <h2 style="margin:0; font-size:1.1rem; font-weight:700; text-transform:uppercase; letter-spacing:1px;">VietCore Finance</h2>
+        <p style="margin:4px 0 0; font-size:0.85rem; color:#555;">Hệ thống Báo cáo Hợp nhất · Cổng Báo cáo Tài chính</p>
+        <p style="margin:2px 0 0; font-size:0.8rem; color:#777;">Đơn vị: triệu đồng · Nguồn: Oracle 23ai FREEPDB1</p>
+        <p style="margin:6px 0 0; font-size:0.75rem; color:#999;" id="printTimestamp"></p>
     </div>
 </div>
