@@ -185,13 +185,41 @@ function showToast(message, type = 'success', duration = 6000) {
 // API CLIENT HELPER
 // ============================================================================
 async function api(url, options = {}) {
-    const res = await fetch(url, options);
-    const data = await res.json();
-    if (!res.ok) {
-        const errorMsg = data.message || data.errorCode || 'Lỗi xử lý yêu cầu từ cơ sở dữ liệu';
-        throw new Error(errorMsg);
+    try {
+        const res = await fetch(url, options);
+        let data;
+        try {
+            data = await res.json();
+        } catch {
+            data = null;
+        }
+
+        if (!res.ok) {
+            const errorMsg = data?.message || data?.errorCode || `Lỗi máy chủ (${res.status})`;
+            if (res.status >= 500 || errorMsg.includes('ORA-') || url.includes('/api/system/status')) {
+                const statusPill = $('oracleStatusPill');
+                const statusLabel = $('statusLabel');
+                if (statusPill && statusLabel) {
+                    statusPill.classList.remove('connecting');
+                    statusPill.classList.add('offline');
+                    statusLabel.textContent = 'Oracle 23ai · Mất kết nối';
+                }
+            }
+            throw new Error(errorMsg);
+        }
+        return data;
+    } catch (err) {
+        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || url.includes('/api/system/status')) {
+            const statusPill = $('oracleStatusPill');
+            const statusLabel = $('statusLabel');
+            if (statusPill && statusLabel) {
+                statusPill.classList.remove('connecting');
+                statusPill.classList.add('offline');
+                statusLabel.textContent = 'Oracle 23ai · Mất kết nối';
+            }
+        }
+        throw err;
     }
-    return data;
 }
 
 function post(url, body) {
@@ -690,10 +718,17 @@ function renderTable(data, mode) {
         const gid = gidIdx >= 0 ? (row[gidIdx] ?? -1) : -1;
 
         let rowClass = '';
-        if (gid === 7) {
-            rowClass = 'row-grandtotal';
-        } else if (gid > 0) {
-            rowClass = 'row-subtotal';
+        if (mode === 'SETS') {
+            // Trong bảng GROUPING SETS, chỉ tô đậm duy nhất dòng cuối có GID == 7 (Tổng toàn hệ thống), không in đậm các dòng trung gian có dấu '-'
+            if (gid === 7) {
+                rowClass = 'row-grandtotal';
+            }
+        } else {
+            if (gid === 7) {
+                rowClass = 'row-grandtotal';
+            } else if (gid > 0) {
+                rowClass = 'row-subtotal';
+            }
         }
 
         const cellsHtml = visibleColIndices.map(idx => {
@@ -785,8 +820,46 @@ function renderChart(data, mode) {
         $('chartTitle').textContent = `Lợi Nhuận Theo Nhóm Sản Phẩm (PIVOT Động)`;
         $('chartSubtitle').textContent = `Danh sách cột được sinh tự động từ bảng danh mục dim_product_group`;
 
-    } else if (mode === 'CUBE' || mode === 'SETS') {
-        const detailRows = rows.filter(r => gidIdx >= 0 && r[gidIdx] === 0).slice(0, 12);
+    } else if (mode === 'SETS') {
+        // Lấy đúng 16 dòng nhóm sản phẩm theo quý (GID == 4) từ GROUPING SETS
+        const g4Rows = rows.filter(r => gidIdx >= 0 && r[gidIdx] === 4);
+        const palette = ['#1D4ED8', '#059669', '#7C3AED', '#D97706'];
+
+        if (g4Rows.length > 0) {
+            chartLabels = g4Rows.map(r => `${r[1]} (${r[2]})`);
+            const groups = [...new Set(g4Rows.map(r => r[1]))];
+            const values = g4Rows.map(r => r[3]);
+
+            datasets = [{
+                label: 'Lợi Nhuận Ròng (triệu ₫)',
+                data: values,
+                backgroundColor: g4Rows.map(r => {
+                    const gIdx = groups.indexOf(r[1]);
+                    return palette[gIdx >= 0 ? gIdx % palette.length : 0];
+                }),
+                borderRadius: 4,
+                maxBarThickness: 32
+            }];
+
+            $('chartTitle').textContent = `Lợi Nhuận 16 Tổ Hợp Nhóm SP & Quý (GROUPING SETS · Năm ${currentYear})`;
+            $('chartSubtitle').textContent = `Dữ liệu 16 dòng tổ hợp (Nhóm sản phẩm, Quý) từ mệnh đề GROUPING SETS (GID = 4)`;
+        } else {
+            // Fallback nếu không có GID 4
+            const fallbackRows = rows.filter(r => gidIdx >= 0 && r[gidIdx] < 7).slice(0, 16);
+            chartLabels = fallbackRows.map(r => `${r[0] !== '-' ? r[0] : r[1]} (${r[2]})`);
+            datasets = [{
+                label: 'Lợi Nhuận Ròng (triệu ₫)',
+                data: fallbackRows.map(r => r[3]),
+                backgroundColor: '#1D4ED8',
+                borderRadius: 4,
+                maxBarThickness: 28
+            }];
+            $('chartTitle').textContent = `Tổng Hợp Chọn Lọc (GROUPING SETS · Năm ${currentYear})`;
+            $('chartSubtitle').textContent = `Dữ liệu tổ hợp chọn lọc`;
+        }
+
+    } else if (mode === 'CUBE') {
+        const detailRows = rows.filter(r => gidIdx >= 0 && r[gidIdx] === 0).slice(0, 16);
         chartLabels = detailRows.map(r => `${r[0]} - ${r[1]} (${r[2]})`);
         const values = detailRows.map(r => r[3]);
 
@@ -795,11 +868,11 @@ function renderChart(data, mode) {
             data: values,
             backgroundColor: '#1D4ED8',
             borderRadius: 6,
-            maxBarThickness: 36
+            maxBarThickness: 32
         }];
 
-        $('chartTitle').textContent = `Phân Tích Đa Chiều (${mode})`;
-        $('chartSubtitle').textContent = `Hiển thị các tổ hợp chiều phân tích`;
+        $('chartTitle').textContent = `Phân Tích Đa Chiều (CUBE · Năm ${currentYear})`;
+        $('chartSubtitle').textContent = `16 tổ hợp chi tiết đầu tiên của (Khu vực, Nhóm sản phẩm, Quý)`;
     }
 
     activeChartInstance = new Chart(ctx, {
@@ -1469,15 +1542,23 @@ async function loadSystemStatus() {
         const statusPill = $('oracleStatusPill');
         const statusLabel = $('statusLabel');
         if (statusPill && statusLabel) {
+            statusPill.classList.remove('connecting');
             if (data.status === 'Online') {
                 statusPill.classList.remove('offline');
                 statusLabel.textContent = `Oracle 23ai · ${formatNumber(data.factIncomeRows)} dòng`;
             } else {
                 statusPill.classList.add('offline');
-                statusLabel.textContent = 'Oracle 23ai Offline';
+                statusLabel.textContent = 'Oracle 23ai · Mất kết nối';
             }
         }
     } catch (err) {
+        const statusPill = $('oracleStatusPill');
+        const statusLabel = $('statusLabel');
+        if (statusPill && statusLabel) {
+            statusPill.classList.remove('connecting');
+            statusPill.classList.add('offline');
+            statusLabel.textContent = 'Oracle 23ai · Mất kết nối';
+        }
         const container = $('systemStatusDetails');
         if (container) {
             container.innerHTML = `<div class="empty-state text-rose">Không thể kết nối tới Oracle Database 23ai</div>`;
