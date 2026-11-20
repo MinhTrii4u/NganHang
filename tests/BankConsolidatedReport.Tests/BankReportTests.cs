@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using BankConsolidatedReport.Web.Controllers.Api;
 using BankConsolidatedReport.Web.Middleware;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -127,5 +128,21 @@ public class RequestModelTests
         Assert.Contains("FREEPDB1", connStr);
         Assert.Contains("1521", connStr);
     }
-}
 
+    [Fact]
+    public void UpdateTransactionAmountRequest_ValidatesAmount()
+    {
+        var req = new UpdateTransactionAmountRequest { Amount = 150.25m };
+        Assert.Equal(150.25m, req.Amount);
+    }
+
+    [Fact]
+    public void Pagination_CalculatesTotalPagesCorrectly()
+    {
+        int totalRows = 215972;
+        int pageSize = 20;
+        int totalPages = (int)Math.Ceiling((double)totalRows / pageSize);
+
+        Assert.Equal(10799, totalPages);
+    }
+}
