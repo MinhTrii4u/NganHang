@@ -235,13 +235,11 @@ public class BankReportRepository
             {
                 cmd.CommandText = @"
                     SELECT 
-                        NVL(SUM(CASE WHEN i.sign_val = 1 THEN f.amount ELSE 0 END), 0) AS revenue,
-                        NVL(SUM(CASE WHEN i.sign_val = -1 THEN f.amount ELSE 0 END), 0) AS expense,
-                        NVL(SUM(f.amount * i.sign_val), 0) AS net_income
-                    FROM fact_income f
-                    JOIN dim_income_item i ON i.item_id = f.item_id
-                    JOIN dim_period p ON p.period_id = f.period_id
-                    WHERE p.fiscal_year = :year";
+                        NVL(SUM(CASE WHEN net_amount > 0 THEN net_amount ELSE 0 END), 0) AS revenue,
+                        NVL(SUM(CASE WHEN net_amount < 0 THEN ABS(net_amount) ELSE 0 END), 0) AS expense,
+                        NVL(SUM(net_amount), 0) AS net_income
+                    FROM v_income
+                    WHERE fiscal_year = :year";
                 cmd.Parameters.Add(new OracleParameter("year", OracleDbType.Int32, y, ParameterDirection.Input));
                 using var reader = await cmd.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
@@ -294,16 +292,14 @@ public class BankReportRepository
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
             SELECT 
-                p.fiscal_quarter,
-                NVL(SUM(CASE WHEN i.sign_val = 1 THEN f.amount ELSE 0 END), 0) AS revenue,
-                NVL(SUM(CASE WHEN i.sign_val = -1 THEN f.amount ELSE 0 END), 0) AS expense,
-                NVL(SUM(f.amount * i.sign_val), 0) AS net_income
-            FROM fact_income f
-            JOIN dim_income_item i ON i.item_id = f.item_id
-            JOIN dim_period p ON p.period_id = f.period_id
-            WHERE p.fiscal_year = :year
-            GROUP BY p.fiscal_quarter
-            ORDER BY p.fiscal_quarter";
+                fiscal_quarter,
+                NVL(SUM(CASE WHEN net_amount > 0 THEN net_amount ELSE 0 END), 0) AS revenue,
+                NVL(SUM(CASE WHEN net_amount < 0 THEN ABS(net_amount) ELSE 0 END), 0) AS expense,
+                NVL(SUM(net_amount), 0) AS net_income
+            FROM v_income
+            WHERE fiscal_year = :year
+            GROUP BY fiscal_quarter
+            ORDER BY fiscal_quarter";
         cmd.Parameters.Add(new OracleParameter("year", OracleDbType.Int32, year, ParameterDirection.Input));
 
         var list = new List<object>();
@@ -328,15 +324,11 @@ public class BankReportRepository
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
             SELECT 
-                g.group_name,
-                NVL(SUM(f.amount * i.sign_val), 0) AS net_income
-            FROM fact_income f
-            JOIN dim_income_item i ON i.item_id = f.item_id
-            JOIN dim_product p ON p.product_id = f.product_id
-            JOIN dim_product_group g ON g.group_id = p.group_id
-            JOIN dim_period dp ON dp.period_id = f.period_id
-            WHERE dp.fiscal_year = :year
-            GROUP BY g.group_name
+                group_name,
+                NVL(SUM(net_amount), 0) AS net_income
+            FROM v_income
+            WHERE fiscal_year = :year
+            GROUP BY group_name
             ORDER BY net_income DESC";
         cmd.Parameters.Add(new OracleParameter("year", OracleDbType.Int32, year, ParameterDirection.Input));
 
@@ -360,14 +352,11 @@ public class BankReportRepository
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = @"
             SELECT 
-                b.branch_name,
-                NVL(SUM(f.amount * i.sign_val), 0) AS net_income
-            FROM fact_income f
-            JOIN dim_income_item i ON i.item_id = f.item_id
-            JOIN dim_branch b ON b.branch_id = f.branch_id
-            JOIN dim_period dp ON dp.period_id = f.period_id
-            WHERE dp.fiscal_year = :year
-            GROUP BY b.branch_name
+                branch_name,
+                NVL(SUM(net_amount), 0) AS net_income
+            FROM v_income
+            WHERE fiscal_year = :year
+            GROUP BY branch_name
             ORDER BY net_income DESC";
         cmd.Parameters.Add(new OracleParameter("year", OracleDbType.Int32, year, ParameterDirection.Input));
 

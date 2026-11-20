@@ -1,4 +1,4 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    BANK REPORT - MODERN EXECUTIVE FINTECH THEME (LIGHT DEFAULT)
    ========================================================================== */
 
@@ -60,7 +60,7 @@
     --table-grandtotal-border: #1D4ED8;
 
     /* Layout metrics */
-    --sidebar-width: 250px;
+    --sidebar-width: 280px;
     --sidebar-collapsed-width: 68px;
     --header-height: 64px;
     --transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -196,8 +196,8 @@ body {
     height: var(--header-height);
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 0 20px;
+    gap: 10px;
+    padding: 0 14px;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -221,19 +221,20 @@ body {
 }
 
 .brand-name {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     font-weight: 800;
-    letter-spacing: -0.3px;
+    letter-spacing: -0.2px;
     color: var(--text-primary);
     white-space: nowrap;
 }
 
 .brand-sub {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--primary);
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.5px;
     text-transform: uppercase;
+    white-space: nowrap;
 }
 
 .sidebar-toggle {
@@ -247,6 +248,9 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
+    transition: var(--transition);
+}
     transition: var(--transition);
 }
 
@@ -501,10 +505,11 @@ body {
    ========================================================================== */
 .page-content {
     flex: 1;
-    padding: 24px 28px 48px;
-    max-width: 1440px;
+    padding: 24px 32px 48px;
+    max-width: 1600px;
     width: 100%;
     margin: 0 auto;
+    box-sizing: border-box;
 }
 
 .tab-panel {
@@ -1374,9 +1379,11 @@ body {
     font-weight: 600;
 }
 
-.status-val {
+.status-val, .status-val code {
     font-weight: 700;
     color: var(--text-primary);
+    word-break: break-all;
+    overflow-wrap: anywhere;
 }
 
 /* Status Badges */
@@ -1692,46 +1699,56 @@ body {
     border-color: var(--primary);
 }
 
-/* Sub-Tab Navigation */
+/* Sub-Tab Navigation - Modern Segmented Control */
 .sub-tab-bar {
-    display: flex;
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-muted);
+    padding: 4px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
     gap: 6px;
-    margin-bottom: 20px;
-    border-bottom: 2px solid var(--border-color);
-    padding-bottom: 2px;
+    margin-bottom: 24px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .sub-tab-btn {
-    padding: 10px 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
     background: transparent;
     border: none;
-    border-bottom: 3px solid transparent;
-    font-size: 0.9rem;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.88rem;
     font-weight: 600;
     color: var(--text-muted);
     cursor: pointer;
-    transition: var(--transition);
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    user-select: none;
 }
 
 .sub-tab-btn:hover {
-    color: var(--primary);
+    color: var(--text-primary);
     background: var(--bg-surface-hover);
 }
 
 .sub-tab-btn.active {
-    color: var(--primary);
-    border-bottom-color: var(--primary);
-    background: var(--primary-light);
+    background: var(--primary) !important;
+    color: #FFFFFF !important;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(29, 78, 216, 0.35);
 }
 
 .sub-tab-panel {
-    display: none;
+    display: none !important;
 }
 
 .sub-tab-panel.active {
-    display: block;
-    animation: fadeIn 0.2s ease-in-out;
+    display: block !important;
+    animation: fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* 8-Quarter Visual Grid (2024 - 2025) */
@@ -1998,3 +2015,4 @@ body {
         height: 60px;
     }
 }
+
