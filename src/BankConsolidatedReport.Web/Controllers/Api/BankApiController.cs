@@ -17,6 +17,26 @@ public class BankApiController : ControllerBase
 
     // ==================== DASHBOARD APIs ====================
 
+    // GET /api/dashboard?year=2025 (Full aggregated dashboard payload)
+    [HttpGet("dashboard")]
+    public async Task<IActionResult> GetDashboard([FromQuery] int year = 2025)
+    {
+        var kpisTask = _repo.GetDashboardKpisAsync(year);
+        var quarterlyTask = _repo.GetQuarterlyTrendAsync(year);
+        var productProfitTask = _repo.GetProductGroupProfitAsync(year);
+        var branchRankingTask = _repo.GetBranchRankingAsync(year);
+
+        await Task.WhenAll(kpisTask, quarterlyTask, productProfitTask, branchRankingTask);
+
+        return Ok(new
+        {
+            kpis = kpisTask.Result,
+            quarterly = quarterlyTask.Result,
+            productProfit = productProfitTask.Result,
+            branchRanking = branchRankingTask.Result
+        });
+    }
+
     // GET /api/dashboard/kpis?year=2025
     [HttpGet("dashboard/kpis")]
     public async Task<IActionResult> GetDashboardKpis([FromQuery] int year = 2025)
