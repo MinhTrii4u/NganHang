@@ -1,6 +1,6 @@
 /**
  * ============================================================================
- * BANK REPORT - MODERN EXECUTIVE FINTECH APPLICATION SCRIPT
+ * VIETCORE FINANCE - ENTERPRISE CONSOLIDATED BANKING PORTAL SCRIPT
  * Connects 100% to Oracle Database 23ai (FREEPDB1 - bank)
  * ============================================================================
  */
@@ -15,6 +15,15 @@ let activeChartInstance = null;
 let currentMode = 'ROLLUP';
 let currentYear = 2025;
 
+// Dashboard chart instances
+let chartQuarterlyInstance = null;
+let chartProductGroupInstance = null;
+let chartBranchRankingInstance = null;
+
+// Transaction pagination state
+let txnPage = 1;
+const TXN_PAGE_SIZE = 20;
+
 // Column name mapping dictionary
 const COLUMN_LABELS = {
     'KHU_VUC': 'Khu Vực',
@@ -28,6 +37,74 @@ const COLUMN_LABELS = {
     'Q4': 'Quý 4 (triệu ₫)'
 };
 
+// SQL Explanation Dictionary for the 5 OLAP Modes
+const SQL_DEFINITIONS = {
+    'ROLLUP': `-- 1. BÁO CÁO HỢP NHẤT PHÂN CẤP (ROLLUP)
+-- Nhóm đa cấp: Toàn ngân hàng -> Khu vực -> Chi nhánh -> Quý
+SELECT 
+    khu_vuc, chi_nhanh, quy,
+    SUM(net_amount) AS loi_nhuan_rong,
+    GROUPING_ID(khu_vuc, chi_nhanh, quy) AS gid
+FROM v_income
+WHERE fiscal_year = :p_year
+GROUP BY ROLLUP(khu_vuc, chi_nhanh, quy)
+ORDER BY GID, khu_vuc, chi_nhanh, quy;`,
+
+    'CUBE': `-- 2. BÁO CÁO PHÂN TÍCH ĐA CHIỀU (CUBE)
+-- Tạo ra 2^3 = 8 tổ hợp nhóm của (Khu vực, Nhóm sản phẩm, Quý)
+SELECT 
+    khu_vuc, nhom_san_pham, quy,
+    SUM(net_amount) AS loi_nhuan_rong,
+    GROUPING_ID(khu_vuc, nhom_san_pham, quy) AS gid
+FROM v_income
+WHERE fiscal_year = :p_year
+GROUP BY CUBE(khu_vuc, nhom_san_pham, quy)
+ORDER BY GID, khu_vuc, nhom_san_pham, quy;`,
+
+    'SETS': `-- 3. BÁO CÁO TỔNG HỢP CHỌN LỌC (GROUPING SETS)
+-- Chỉ tính đúng 4 mức tổng hợp nghiệp vụ ngân hàng cần thiết
+SELECT 
+    khu_vuc, chi_nhanh, nhom_san_pham,
+    SUM(net_amount) AS loi_nhuan_rong,
+    GROUPING_ID(khu_vuc, chi_nhanh, nhom_san_pham) AS gid
+FROM v_income
+WHERE fiscal_year = :p_year
+GROUP BY GROUPING SETS (
+    (khu_vuc, chi_nhanh, nhom_san_pham), -- Chi tiết nhất
+    (khu_vuc, chi_nhanh),               -- Cấp Chi nhánh
+    (khu_vuc),                          -- Cấp Khu vực
+    ()                                  -- Tổng Toàn hệ thống
+)
+ORDER BY GID, khu_vuc, chi_nhanh, nhom_san_pham;`,
+
+    'PIVOT': `-- 4. BÁO CÁO SO SÁNH 4 QUÝ (PIVOT)
+-- Chuyển dòng Quý thành 4 cột Q1, Q2, Q3, Q4 bằng mệnh đề PIVOT
+SELECT * FROM (
+    SELECT chi_nhanh, quy, net_amount
+    FROM v_income
+    WHERE fiscal_year = :p_year
+)
+PIVOT (
+    SUM(net_amount)
+    FOR quy IN ('Q1' AS Q1, 'Q2' AS Q2, 'Q3' AS Q3, 'Q4' AS Q4)
+)
+ORDER BY chi_nhanh;`,
+
+    'PIVOT_DYN': `-- 5. BÁO CÁO CƠ CẤU SẢN PHẨM (PIVOT ĐỘNG)
+-- Oracle PL/SQL đọc danh mục dim_product_group để ghép chuỗi SQL động:
+-- LISTAGG(QUOTENAME(group_name)) -> EXECUTE IMMEDIATE ... OPEN p_cursor FOR ...
+SELECT * FROM (
+    SELECT chi_nhanh, group_name, net_amount
+    FROM v_income
+    WHERE fiscal_year = :p_year
+)
+PIVOT (
+    SUM(net_amount)
+    FOR group_name IN ('Tín dụng', 'Tiền gửi', 'Thẻ', 'Ngoại hối', ...)
+)
+ORDER BY chi_nhanh;`
+};
+
 // ============================================================================
 // FORMATTING UTILITIES
 // ============================================================================
@@ -39,12 +116,11 @@ function formatNumber(val, decimals = 2) {
         val = num;
     }
     return val.toLocaleString('vi-VN', {
-        minimumFractionDigits: decimals > 0 ? 0 : 0,
+        minimumFractionDigits: 0,
         maximumFractionDigits: decimals
     });
 }
 
-// Animated count-up for numbers
 function animateCount(el, targetValue, duration = 600, unit = '') {
     if (!el) return;
     if (typeof targetValue !== 'number' || isNaN(targetValue)) {
@@ -97,7 +173,6 @@ function showToast(message, type = 'success', duration = 6000) {
     `;
 
     toast.querySelector('.toast-close-btn').onclick = () => toast.remove();
-
     container.appendChild(toast);
 
     setTimeout(() => {
@@ -152,8 +227,10 @@ $('themeToggle')?.addEventListener('click', () => {
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('app-theme', next);
 
-    // Re-render chart if open to adjust colors
-    if (currentReportData && activeChartInstance) {
+    // Re-render charts to adjust text color
+    const year = parseInt($('dashYear')?.value || '2025', 10);
+    loadDashboard(year);
+    if (currentReportData) {
         renderChart(currentReportData, currentMode);
     }
 });
@@ -172,34 +249,336 @@ $('mobileToggle')?.addEventListener('click', () => {
     $('sidebar')?.classList.toggle('mobile-open');
 });
 
-// Tab navigation
+// Main 5-Tab Navigation
+function switchTab(tabId) {
+    $$('.sidebar-menu .menu-item').forEach(m => {
+        if (m.dataset.tab === tabId) m.classList.add('active');
+        else m.classList.remove('active');
+    });
+
+    $$('.tab-panel').forEach(p => p.classList.remove('active'));
+    const targetPanel = $(tabId);
+    if (targetPanel) targetPanel.classList.add('active');
+
+    $('sidebar')?.classList.remove('mobile-open');
+
+    // Trigger tab-specific loading
+    if (tabId === 'tab-dashboard') {
+        const year = parseInt($('dashYear')?.value || '2025', 10);
+        loadDashboard(year);
+    } else if (tabId === 'tab-report') {
+        if (!currentReportData) loadReport();
+    } else if (tabId === 'tab-txn') {
+        loadTransactions(txnPage);
+    } else if (tabId === 'tab-lock') {
+        loadClosedQuarters();
+        renderQuarterGrid();
+        loadPeriodCloseLog();
+    } else if (tabId === 'tab-audit') {
+        loadDimTables();
+        loadAuditLog();
+        loadTestLog();
+        loadSystemStatus();
+    }
+}
+
 $$('.sidebar-menu .menu-item').forEach(item => {
     item.addEventListener('click', e => {
         e.preventDefault();
-        $$('.sidebar-menu .menu-item').forEach(m => m.classList.remove('active'));
-        item.classList.add('active');
-
-        $$('.tab-panel').forEach(p => p.classList.remove('active'));
         const tabId = item.dataset.tab;
-        const targetPanel = $(tabId);
-        if (targetPanel) targetPanel.classList.add('active');
-
-        $('sidebar')?.classList.remove('mobile-open');
-
-        // Lazy load tab data
-        if (tabId === 'tab-lock') {
-            loadClosedQuarters();
-            loadPeriodCloseLog();
-        } else if (tabId === 'tab-logs') {
-            loadTestLog();
-            loadSystemStatus();
-            loadAuditLog();
-        }
+        switchTab(tabId);
     });
 });
 
+// Clickable KPI card (goto tab-lock)
+$$('.kpi-card-clickable').forEach(card => {
+    card.addEventListener('click', () => {
+        const target = card.dataset.gotoTab;
+        if (target) switchTab(target);
+    });
+});
+
+// Sub-Tab Navigation inside Tab 3 and Tab 5
+function initSubTabs() {
+    $$('.sub-tab-bar .sub-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const parent = btn.closest('.tab-panel');
+            if (!parent) return;
+
+            parent.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+            parent.querySelectorAll('.sub-tab-panel').forEach(p => p.classList.remove('active'));
+
+            btn.classList.add('active');
+            const targetPanel = $(btn.dataset.subtab);
+            if (targetPanel) targetPanel.classList.add('active');
+        });
+    });
+}
+
 // ============================================================================
-// REPORT LOADING (MAIN FEATURE)
+// PHÂN HỆ 1: TỔNG QUAN ĐIỀU HÀNH (DASHBOARD)
+// ============================================================================
+async function loadDashboard(year) {
+    try {
+        const [kpis, quarterly, products, branches] = await Promise.all([
+            api(`/api/dashboard/kpis?year=${year}`),
+            api(`/api/dashboard/quarterly?year=${year}`),
+            api(`/api/dashboard/product-profit?year=${year}`),
+            api(`/api/dashboard/branch-ranking?year=${year}`)
+        ]);
+
+        // 1. Render 4 KPIs
+        animateCount($('kpiRevenue'), kpis.revenue);
+        animateCount($('kpiExpense'), kpis.expense);
+        animateCount($('kpiNetIncome'), kpis.netIncome);
+
+        if ($('kpiRevenueMeta')) $('kpiRevenueMeta').textContent = `Tổng Thu (Năm ${year})`;
+        if ($('kpiExpenseMeta')) $('kpiExpenseMeta').textContent = `Tổng Chi (Năm ${year})`;
+
+        // Profit margin (%)
+        const margin = kpis.revenue > 0 ? ((kpis.netIncome / kpis.revenue) * 100).toFixed(1) : '0';
+        if ($('kpiNetIncomeMeta')) $('kpiNetIncomeMeta').textContent = `Biên lợi nhuận: ${margin}% · Năm ${year}`;
+
+        // YoY badges (2025 vs 2024)
+        renderYoYBadge($('kpiRevenueChange'), kpis.revenue, kpis.prevRevenue);
+        renderYoYBadge($('kpiExpenseChange'), kpis.expense, kpis.prevExpense);
+        renderYoYBadge($('kpiNetIncomeChange'), kpis.netIncome, kpis.prevNetIncome);
+
+        // Locked count
+        if ($('kpiLocked')) $('kpiLocked').textContent = `${kpis.lockedCount} / ${kpis.totalQuarters}`;
+        if ($('kpiLockedMeta')) $('kpiLockedMeta').textContent = kpis.lockedCount > 0 ? `${kpis.lockedCount} quý đang được bảo vệ` : 'Chưa có quý nào bị khóa';
+
+        // 2. Render 3 Dashboard Charts
+        renderQuarterlyChart(quarterly, year);
+        renderProductGroupChart(products, year);
+        renderBranchRankingChart(branches, year);
+
+    } catch (err) {
+        console.error('Lỗi khi nạp Dashboard:', err);
+        showToast(err.message, 'error');
+    }
+}
+
+function renderYoYBadge(el, current, previous) {
+    if (!el) return;
+    if (!previous || previous === 0) {
+        el.textContent = 'So với năm trước: —';
+        el.className = 'kpi-change';
+        return;
+    }
+
+    const diff = current - previous;
+    const pct = ((diff / Math.abs(previous)) * 100).toFixed(1);
+
+    if (diff >= 0) {
+        el.className = 'kpi-change up';
+        el.innerHTML = `▲ +${pct}% so với năm trước`;
+    } else {
+        el.className = 'kpi-change down';
+        el.innerHTML = `▼ ${pct}% so với năm trước`;
+    }
+}
+
+function renderQuarterlyChart(data, year) {
+    const canvas = $('chartQuarterly');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (chartQuarterlyInstance) {
+        chartQuarterlyInstance.destroy();
+        chartQuarterlyInstance = null;
+    }
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#CBD5E1' : '#475569';
+    const gridColor = isDark ? '#334155' : '#E2E8F0';
+
+    const labels = data.map(d => d.quarter);
+    const revenues = data.map(d => d.revenue);
+    const expenses = data.map(d => d.expense);
+    const netIncomes = data.map(d => d.netIncome);
+
+    const ctx = canvas.getContext('2d');
+    chartQuarterlyInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Thu nhập',
+                    data: revenues,
+                    backgroundColor: '#059669',
+                    borderRadius: 4,
+                    order: 2
+                },
+                {
+                    label: 'Chi phí',
+                    data: expenses,
+                    backgroundColor: '#DC2626',
+                    borderRadius: 4,
+                    order: 2
+                },
+                {
+                    label: 'Lợi nhuận ròng',
+                    data: netIncomes,
+                    type: 'line',
+                    borderColor: '#1D4ED8',
+                    backgroundColor: 'rgba(29, 78, 216, 0.1)',
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.3,
+                    pointBackgroundColor: '#1D4ED8',
+                    pointRadius: 5,
+                    order: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: { color: textColor, font: { family: 'Plus Jakarta Sans', size: 12, weight: 600 } }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${ctx.dataset.label}: ${formatNumber(ctx.parsed.y)} triệu ₫`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', weight: 600 } }
+                },
+                y: {
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, callback: val => formatNumber(val, 0) }
+                }
+            }
+        }
+    });
+}
+
+function renderProductGroupChart(data, year) {
+    const canvas = $('chartProductGroup');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (chartProductGroupInstance) {
+        chartProductGroupInstance.destroy();
+        chartProductGroupInstance = null;
+    }
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#CBD5E1' : '#475569';
+
+    const labels = data.map(d => d.group);
+    const values = data.map(d => Math.max(0, d.netIncome));
+    const colors = ['#1D4ED8', '#059669', '#7C3AED', '#D97706', '#0284C7', '#E11D48'];
+
+    const ctx = canvas.getContext('2d');
+    chartProductGroupInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels,
+            datasets: [{
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
+                borderWidth: 2,
+                borderColor: isDark ? '#1E293B' : '#FFFFFF'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '60%',
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { color: textColor, font: { family: 'Plus Jakarta Sans', size: 11, weight: 600 }, padding: 12 }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${ctx.label}: ${formatNumber(ctx.parsed)} triệu ₫`
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderBranchRankingChart(data, year) {
+    const canvas = $('chartBranchRanking');
+    if (!canvas || typeof Chart === 'undefined') return;
+
+    if (chartBranchRankingInstance) {
+        chartBranchRankingInstance.destroy();
+        chartBranchRankingInstance = null;
+    }
+
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#CBD5E1' : '#475569';
+    const gridColor = isDark ? '#334155' : '#E2E8F0';
+
+    // Sắp xếp tăng dần để cột ngang xếp hạng chi nhánh cao nhất lên trên
+    const sorted = [...data].sort((a, b) => a.netIncome - b.netIncome);
+    const labels = sorted.map(d => d.branch);
+    const values = sorted.map(d => d.netIncome);
+
+    const ctx = canvas.getContext('2d');
+    chartBranchRankingInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [{
+                label: `Lợi nhuận ròng (Năm ${year})`,
+                data: values,
+                backgroundColor: values.map(v => v >= 0 ? '#1D4ED8' : '#DC2626'),
+                borderRadius: 4,
+                maxBarThickness: 24
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${formatNumber(ctx.parsed.x)} triệu ₫`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { color: gridColor },
+                    ticks: {
+                        color: textColor,
+                        callback: val => formatNumber(val, 0)
+                    }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', weight: 600 } }
+                }
+            }
+        }
+    });
+}
+
+$('btnRefreshDash')?.addEventListener('click', () => {
+    const year = parseInt($('dashYear')?.value || '2025', 10);
+    loadDashboard(year);
+});
+
+$('dashYear')?.addEventListener('change', () => {
+    const year = parseInt($('dashYear')?.value || '2025', 10);
+    loadDashboard(year);
+});
+
+// ============================================================================
+// PHÂN HỆ 2: BÁO CÁO HỢP NHẤT (OLAP)
 // ============================================================================
 async function loadReport() {
     const skeleton = $('reportSkeleton');
@@ -217,19 +596,19 @@ async function loadReport() {
         const data = await api(`/api/report?mode=${currentMode}&year=${currentYear}`);
         currentReportData = data;
 
-        // Render Table and Chart
+        // Render Table & Chart
         renderTable(data, currentMode);
         renderChart(data, currentMode);
 
-        // Calculate and animate KPIs
-        updateKPIs(data, currentMode, currentYear);
+        // Update SQL Display if opened
+        updateSqlDisplay(currentMode, currentYear);
 
-        // Update badges
+        // Update badge
         const countBadge = $('tableRowCountBadge');
         if (countBadge) countBadge.textContent = `${data.rowCount} dòng`;
 
     } catch (err) {
-        console.error('Lỗi khi tải báo cáo:', err);
+        console.error('Lỗi khi tải báo cáo OLAP:', err);
         showToast(err.message, 'error', 8000);
     } finally {
         setBtnLoading(btn, false);
@@ -238,74 +617,11 @@ async function loadReport() {
     }
 }
 
-// Calculate and animate KPI Cards
-function updateKPIs(data, mode, year) {
-    const { columns, rows, rowCount, executionMs } = data;
-
-    // 1. Row count & execution time
-    animateCount($('kpiRowCount'), rowCount);
-    animateCount($('kpiExecTime'), executionMs);
-
-    const rowCountMeta = $('kpiRowCountMeta');
-    if (rowCountMeta) {
-        const modeDesc = {
-            'ROLLUP': 'Báo cáo ROLLUP đa cấp bậc',
-            'CUBE': 'Báo cáo CUBE mọi tổ hợp chiều',
-            'SETS': 'Báo cáo GROUPING SETS chọn lọc',
-            'PIVOT': 'Báo cáo PIVOT 4 Quý thành cột',
-            'PIVOT_DYN': 'Báo cáo PIVOT Nhóm Sản Phẩm động'
-        };
-        rowCountMeta.textContent = modeDesc[mode] || `${mode} - ${year}`;
-    }
-
-    // 2. Net Income calculation
-    let grandTotalIncome = null;
-    const gidIdx = columns.indexOf('GID');
-    const incomeColIdx = columns.findIndex(c => c.toUpperCase().includes('LOI_NHUAN') || c.toUpperCase().includes('NET'));
-
-    if (mode === 'ROLLUP' || mode === 'CUBE' || mode === 'SETS') {
-        if (gidIdx >= 0 && incomeColIdx >= 0) {
-            // Grand total row has highest GID (7 for 3 grouped columns)
-            const grandTotalRow = rows.find(r => r[gidIdx] === 7);
-            if (grandTotalRow) {
-                grandTotalIncome = grandTotalRow[incomeColIdx];
-            } else {
-                // Fallback: row with region or branch = 'Tổng toàn hệ thống'
-                const fallbackRow = rows.find(r => r[0] === 'Tổng toàn hệ thống' || r[1] === 'Tổng toàn hệ thống');
-                if (fallbackRow) grandTotalIncome = fallbackRow[incomeColIdx];
-            }
-        }
-    } else if (mode === 'PIVOT' || mode === 'PIVOT_DYN') {
-        // In PIVOT mode, sum all numeric columns across all branch rows
-        let sum = 0;
-        const numIndices = columns.map((col, idx) => idx).filter(idx => idx > 0 && columns[idx] !== 'GID');
-        rows.forEach(r => {
-            numIndices.forEach(colIdx => {
-                const val = r[colIdx];
-                if (typeof val === 'number') sum += val;
-            });
-        });
-        grandTotalIncome = sum;
-    }
-
-    if (grandTotalIncome !== null) {
-        animateCount($('kpiNetIncome'), grandTotalIncome);
-        const meta = $('kpiNetIncomeMeta');
-        if (meta) meta.textContent = `Tổng toàn hệ thống (Năm ${year})`;
-    } else {
-        $('kpiNetIncome').textContent = '—';
-    }
-}
-
-// ============================================================================
-// TABLE RENDERING
-// ============================================================================
 function renderTable(data, mode) {
     const { columns, rows } = data;
     const gidIdx = columns.indexOf('GID');
     const visibleColIndices = columns.map((col, idx) => idx).filter(idx => columns[idx] !== 'GID');
 
-    // Helper: determine if a column is numeric (amounts/quarters) vs text (region, branch, etc.)
     const checkIsNumeric = (idx) => {
         const raw = columns[idx].toUpperCase();
         return raw.includes('LOI_NHUAN') || raw.includes('NET') || 
@@ -313,7 +629,7 @@ function renderTable(data, mode) {
                rows.some(r => typeof r[idx] === 'number');
     };
 
-    // Render Table Header (Text strictly left-aligned, Numbers strictly right-aligned)
+    // Table Header
     const thead = $('reportThead');
     if (thead) {
         thead.innerHTML = '<tr>' + visibleColIndices.map(idx => {
@@ -324,7 +640,7 @@ function renderTable(data, mode) {
         }).join('') + '</tr>';
     }
 
-    // Render Table Body
+    // Table Body
     const tbody = $('reportTbody');
     if (!tbody) return;
 
@@ -358,9 +674,6 @@ function renderTable(data, mode) {
     }).join('');
 }
 
-// ============================================================================
-// CHART RENDERING (CHART.JS)
-// ============================================================================
 function renderChart(data, mode) {
     const canvas = $('reportChart');
     if (!canvas || typeof Chart === 'undefined') return;
@@ -383,10 +696,9 @@ function renderChart(data, mode) {
     let datasets = [];
 
     if (mode === 'ROLLUP') {
-        // Display comparison of 9 Branches: extract rows where gid == 1 (branch total)
         const branchTotalRows = rows.filter(r => gidIdx >= 0 && r[gidIdx] === 1);
-        chartLabels = branchTotalRows.map(r => r[1]); // Branch name
-        const values = branchTotalRows.map(r => r[3]); // Net income
+        chartLabels = branchTotalRows.map(r => r[1]);
+        const values = branchTotalRows.map(r => r[3]);
 
         datasets = [{
             label: 'Lợi Nhuận Ròng Chi Nhánh (triệu ₫)',
@@ -396,12 +708,11 @@ function renderChart(data, mode) {
             maxBarThickness: 42
         }];
 
-        $('chartTitle').textContent = `Lợi Nhuận Ròng 9 Chi Nhánh (Năm ${currentYear})`;
+        $('chartTitle').textContent = `Lợi Nhuận Ròng 9 Chi Nhánh (ROLLUP · Năm ${currentYear})`;
         $('chartSubtitle').textContent = `Dữ liệu tổng hợp cấp Chi nhánh từ mệnh đề ROLLUP`;
 
     } else if (mode === 'PIVOT') {
-        // Compare Q1, Q2, Q3, Q4 across 9 branches
-        chartLabels = rows.map(r => r[0]); // Chi nhánh
+        chartLabels = rows.map(r => r[0]);
         const quarterColors = ['#1D4ED8', '#059669', '#7C3AED', '#D97706'];
 
         datasets = ['q1', 'q2', 'q3', 'q4'].map((qKey, qIdx) => {
@@ -419,7 +730,6 @@ function renderChart(data, mode) {
         $('chartSubtitle').textContent = `Các quý được xoay trục thành cột`;
 
     } else if (mode === 'PIVOT_DYN') {
-        // Compare Product Groups across 9 branches
         chartLabels = rows.map(r => r[0]);
         const dynamicCols = columns.slice(1).filter(c => c !== 'GID');
         const palette = ['#1D4ED8', '#059669', '#7C3AED', '#D97706', '#0284C7', '#E11D48'];
@@ -439,7 +749,6 @@ function renderChart(data, mode) {
         $('chartSubtitle').textContent = `Danh sách cột được sinh tự động từ bảng danh mục dim_product_group`;
 
     } else if (mode === 'CUBE' || mode === 'SETS') {
-        // Display top contributing segments
         const detailRows = rows.filter(r => gidIdx >= 0 && r[gidIdx] === 0).slice(0, 12);
         chartLabels = detailRows.map(r => `${r[0]} - ${r[1]} (${r[2]})`);
         const values = detailRows.map(r => r[3]);
@@ -458,180 +767,441 @@ function renderChart(data, mode) {
 
     activeChartInstance = new Chart(ctx, {
         type: chartType,
-        data: {
-            labels: chartLabels,
-            datasets: datasets
-        },
+        data: { labels: chartLabels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false
-            },
             plugins: {
                 legend: {
                     position: 'top',
-                    labels: {
-                        color: textColor,
-                        boxWidth: 12,
-                        padding: 14,
-                        font: { family: 'Plus Jakarta Sans', size: 12, weight: 600 }
-                    }
+                    labels: { color: textColor, boxWidth: 12, padding: 14, font: { family: 'Plus Jakarta Sans', size: 12, weight: 600 } }
                 },
                 tooltip: {
-                    backgroundColor: isDark ? '#1E293B' : '#0F172A',
-                    titleColor: '#FFFFFF',
-                    bodyColor: '#F8FAFC',
-                    padding: 10,
-                    cornerRadius: 8,
                     callbacks: {
-                        label: function (context) {
-                            const val = context.parsed.y ?? context.parsed.x ?? 0;
-                            return ` ${context.dataset.label}: ${formatNumber(val)} triệu ₫`;
-                        }
+                        label: context => ` ${context.dataset.label}: ${formatNumber(context.parsed.y ?? context.parsed.x ?? 0)} triệu ₫`
                     }
                 }
             },
             scales: {
                 x: {
-                    grid: { color: gridColor, drawBorder: false },
+                    grid: { color: gridColor },
                     ticks: { color: textColor, font: { family: 'Plus Jakarta Sans', size: 11, weight: 500 } }
                 },
                 y: {
-                    grid: { color: gridColor, drawBorder: false },
-                    ticks: {
-                        color: textColor,
-                        font: { family: 'Plus Jakarta Sans', size: 11 },
-                        callback: val => formatNumber(val, 0)
-                    }
+                    grid: { color: gridColor },
+                    ticks: { color: textColor, callback: val => formatNumber(val, 0) }
                 }
             }
         }
     });
 }
 
-// Chart Toggle
-$('btnToggleChart')?.addEventListener('click', () => {
-    const content = $('chartContent');
-    const textEl = $('chartToggleText');
-    if (!content) return;
-
-    content.classList.toggle('collapsed');
-    if (content.classList.contains('collapsed')) {
-        if (textEl) textEl.textContent = 'Mở rộng';
-    } else {
-        if (textEl) textEl.textContent = 'Thu gọn';
-    }
-});
-
-// ============================================================================
-// TABLE SEARCH & EXPORT
-// ============================================================================
-$('tableSearch')?.addEventListener('input', e => {
-    const term = e.target.value.toLowerCase().trim();
-    const rows = $$('#reportTbody tr');
-    let visibleCount = 0;
-
-    rows.forEach(tr => {
-        const text = tr.textContent.toLowerCase();
-        const match = !term || text.includes(term);
-        tr.style.display = match ? '' : 'none';
-        if (match) visibleCount++;
-    });
-
-    const badge = $('tableRowCountBadge');
-    if (badge) badge.textContent = `${visibleCount} dòng`;
-});
-
-function exportReport(format = 'csv') {
-    if (!currentReportData || !currentReportData.rows.length) {
-        showToast('Không có dữ liệu báo cáo để xuất', 'error');
-        return;
-    }
-
-    const { columns, rows } = currentReportData;
-    const visibleIndices = columns.map((c, i) => i).filter(i => columns[i] !== 'GID');
-    const headerRow = visibleIndices.map(i => COLUMN_LABELS[columns[i]] || columns[i]);
-
-    let content = '\uFEFF'; // UTF-8 BOM for Excel
-    content += headerRow.join(',') + '\r\n';
-
-    rows.forEach(r => {
-        const rowVals = visibleIndices.map(i => {
-            const val = r[i];
-            if (val === null || val === undefined) return '';
-            if (typeof val === 'string' && (val.includes(',') || val.includes('"'))) {
-                return `"${val.replace(/"/g, '""')}"`;
-            }
-            return val;
-        });
-        content += rowVals.join(',') + '\r\n';
-    });
-
-    const mime = format === 'excel' ? 'application/vnd.ms-excel;charset=utf-8' : 'text/csv;charset=utf-8';
-    const blob = new Blob([content], { type: mime });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `BaoCao_HopNhat_${currentMode}_${currentYear}.${format === 'excel' ? 'xls' : 'csv'}`;
-    link.click();
-    URL.revokeObjectURL(link.href);
-
-    showToast(`Đã xuất file ${format.toUpperCase()} thành công!`);
-}
-
-$('btnExportCsv')?.addEventListener('click', () => exportReport('csv'));
-$('btnExportExcel')?.addEventListener('click', () => exportReport('excel'));
-
-// ============================================================================
-// INTERACTIVE CONTROLS (MODE & YEAR)
-// ============================================================================
+// Mode button switching
 $$('.segmented-control .segment-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         $$('.segmented-control .segment-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        // Auto-refresh instantly
         loadReport();
     });
 });
 
-$('reportYear')?.addEventListener('change', () => {
-    loadReport();
+$('btnRefreshReport')?.addEventListener('click', loadReport);
+$('reportYear')?.addEventListener('change', loadReport);
+
+// SQL toggle
+function updateSqlDisplay(mode, year) {
+    const pre = $('sqlDisplay');
+    if (!pre) return;
+    const template = SQL_DEFINITIONS[mode] || '-- Không có mô tả SQL';
+    pre.textContent = template.replace(/:p_year/g, year);
+}
+
+$('btnToggleSql')?.addEventListener('click', () => {
+    const panel = $('sqlInfoPanel');
+    if (!panel) return;
+    if (panel.style.display === 'none' || !panel.style.display) {
+        panel.style.display = 'block';
+        updateSqlDisplay(currentMode, currentYear);
+    } else {
+        panel.style.display = 'none';
+    }
 });
 
-$('btnRefreshReport')?.addEventListener('click', () => {
-    loadReport();
+// Print Report
+$('btnPrintReport')?.addEventListener('click', () => {
+    const ts = $('printTimestamp');
+    if (ts) ts.textContent = `Ngày xuất báo cáo: ${new Date().toLocaleString('vi-VN')} · Năm tài chính: ${currentYear} · Chế độ: ${currentMode}`;
+    window.print();
 });
 
-// ============================================================================
-// TAB 2: CHỐT KỲ & KIỂM SOÁT KHÓA
-// ============================================================================
-function showConfirmModal(message) {
-    return new Promise(resolve => {
-        const modal = $('confirmModal');
-        const msgEl = $('confirmMessage');
-        const okBtn = $('confirmOk');
-        const cancelBtn = $('confirmCancel');
+// Client search in table
+$('tableSearch')?.addEventListener('input', e => {
+    const q = e.target.value.toLowerCase().trim();
+    const rows = $$('#reportTbody tr');
+    rows.forEach(r => {
+        const text = r.textContent.toLowerCase();
+        r.style.display = text.includes(q) ? '' : 'none';
+    });
+});
 
-        if (msgEl) msgEl.textContent = message;
-        if (modal) modal.classList.add('show');
+// Export CSV / Excel
+$('btnExportCsv')?.addEventListener('click', () => exportTableToCsv('BaoCao_TaiChinh.csv'));
+$('btnExportExcel')?.addEventListener('click', () => exportTableToCsv('BaoCao_TaiChinh.xls'));
 
-        const cleanUp = () => {
-            if (modal) modal.classList.remove('show');
-            okBtn.onclick = null;
-            cancelBtn.onclick = null;
+function exportTableToCsv(filename) {
+    if (!currentReportData) return;
+    const { columns, rows } = currentReportData;
+    const visibleCols = columns.filter(c => c !== 'GID');
+    const visibleIndices = columns.map((c, i) => i).filter(i => columns[i] !== 'GID');
+
+    let csv = '\uFEFF'; // BOM
+    csv += visibleCols.map(c => `"${COLUMN_LABELS[c] || c}"`).join(',') + '\r\n';
+
+    rows.forEach(r => {
+        const line = visibleIndices.map(i => {
+            const v = r[i];
+            if (v === null || v === undefined) return '""';
+            return `"${v}"`;
+        }).join(',');
+        csv += line + '\r\n';
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
+}
+
+// ============================================================================
+// PHÂN HỆ 3: SỔ GIAO DỊCH & UNPIVOT
+// ============================================================================
+async function loadTransactions(page = 1) {
+    txnPage = page;
+    const branchId = $('txnFilterBranch')?.value || '';
+    const year = $('txnFilterYear')?.value || '';
+    const quarter = $('txnFilterQuarter')?.value || '';
+    const search = $('txnSearchInput')?.value || '';
+
+    const tbody = $('txnTbody');
+    if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted" style="padding:24px;"><span class="spinner"></span> Đang nạp dữ liệu fact_income...</td></tr>`;
+    }
+
+    try {
+        const url = `/api/transactions?page=${page}&pageSize=${TXN_PAGE_SIZE}&branchId=${branchId}&year=${year}&quarter=${quarter}&search=${encodeURIComponent(search)}`;
+        const data = await api(url);
+
+        renderTransactionsTable(data);
+        renderPagination(data);
+    } catch (err) {
+        console.error('Lỗi nạp transactions:', err);
+        showToast(err.message, 'error');
+    }
+}
+
+function renderTransactionsTable(data) {
+    const tbody = $('txnTbody');
+    if (!tbody) return;
+
+    if (!data.rows || data.rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted" style="padding:24px;">Không tìm thấy giao dịch nào</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = data.rows.map(r => `
+        <tr>
+            <td class="text-left font-bold">#${r.factId}</td>
+            <td class="text-left">${r.branchName}</td>
+            <td class="text-left">${r.regionName}</td>
+            <td class="text-left">${r.productName}</td>
+            <td class="text-left">${r.groupName}</td>
+            <td class="text-left"><span class="${r.signVal === 1 ? 'text-emerald' : 'text-rose'}">${r.itemName}</span></td>
+            <td class="text-left">${r.year}</td>
+            <td class="text-left">${r.quarter}</td>
+            <td class="text-right tabular-nums">${formatNumber(r.amount)}</td>
+            <td class="text-right tabular-nums ${r.netAmount < 0 ? 'negative-amount' : ''}">${formatNumber(r.netAmount)}</td>
+            <td class="text-center">
+                <div class="action-btn-group">
+                    <button type="button" class="action-btn edit" onclick="openEditModal(${r.factId}, ${r.amount})" title="Sửa số tiền (kích hoạt trg_fact_audit)">
+                        ✏️
+                    </button>
+                    <button type="button" class="action-btn delete" onclick="deleteTransaction(${r.factId})" title="Xóa giao dịch (kích hoạt trg_fact_period_guard / trg_fact_audit)">
+                        🗑️
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderPagination(data) {
+    const container = $('txnPagination');
+    if (!container) return;
+
+    const { page, totalPages, totalRows } = data;
+    if (totalPages <= 1) {
+        container.innerHTML = `<span class="pagination-info">Tổng cộng: ${formatNumber(totalRows, 0)} giao dịch</span>`;
+        return;
+    }
+
+    let html = '';
+    html += `<button type="button" class="page-btn" ${page <= 1 ? 'disabled' : ''} onclick="loadTransactions(1)">«</button>`;
+    html += `<button type="button" class="page-btn" ${page <= 1 ? 'disabled' : ''} onclick="loadTransactions(${page - 1})">‹</button>`;
+
+    const startPage = Math.max(1, page - 2);
+    const endPage = Math.min(totalPages, page + 2);
+
+    for (let p = startPage; p <= endPage; p++) {
+        html += `<button type="button" class="page-btn ${p === page ? 'active' : ''}" onclick="loadTransactions(${p})">${p}</button>`;
+    }
+
+    html += `<button type="button" class="page-btn" ${page >= totalPages ? 'disabled' : ''} onclick="loadTransactions(${page + 1})">›</button>`;
+    html += `<button type="button" class="page-btn" ${page >= totalPages ? 'disabled' : ''} onclick="loadTransactions(${totalPages})">»</button>`;
+    html += `<span class="pagination-info">Trang ${page}/${totalPages} (${formatNumber(totalRows, 0)} giao dịch)</span>`;
+
+    container.innerHTML = html;
+}
+
+$('btnSearchTxn')?.addEventListener('click', () => loadTransactions(1));
+$('txnFilterBranch')?.addEventListener('change', () => loadTransactions(1));
+$('txnFilterYear')?.addEventListener('change', () => loadTransactions(1));
+$('txnFilterQuarter')?.addEventListener('change', () => loadTransactions(1));
+
+// Add Transaction Modal
+$('btnOpenAddTxn')?.addEventListener('click', () => {
+    $('addTxnModal')?.classList.add('show');
+});
+
+$('addTxnClose')?.addEventListener('click', () => {
+    $('addTxnModal')?.classList.remove('show');
+});
+
+$('addTxnCancel')?.addEventListener('click', () => {
+    $('addTxnModal')?.classList.remove('show');
+});
+
+// Test mode biên lỗi checkbox
+$('toggleTestMode')?.addEventListener('change', e => {
+    if (e.target.checked) {
+        $('addTxnAmount').value = '-5'; // Test ORA-20007
+        $('addTxnPeriod').value = '202401'; // Test kỳ khóa ORA-20003
+        showToast('Đã điền số tiền âm -5 và kỳ 202401 để sẵn sàng demo Trigger & Exception của Oracle', 'error', 5000);
+    } else {
+        $('addTxnAmount').value = '100';
+        $('addTxnPeriod').value = '202503';
+    }
+});
+
+$('addTxnSubmit')?.addEventListener('click', async () => {
+    const btn = $('addTxnSubmit');
+    setBtnLoading(btn, true, 'Đang gửi...');
+
+    try {
+        const branchId = parseInt($('addTxnBranch')?.value || '1', 10);
+        const productId = parseInt($('addTxnProduct')?.value || '1', 10);
+        const itemId = parseInt($('addTxnItem')?.value || '1', 10);
+        const periodId = parseInt($('addTxnPeriod')?.value || '202503', 10);
+        const amount = parseFloat($('addTxnAmount')?.value || '100');
+
+        const res = await post('/api/txn', { branchId, productId, itemId, periodId, amount });
+        showToast(res.message || 'Thêm giao dịch thành công!', 'success');
+
+        $('addTxnModal')?.classList.remove('show');
+        loadTransactions(1);
+
+    } catch (err) {
+        showToast(err.message, 'error', 8000);
+    } finally {
+        setBtnLoading(btn, false);
+    }
+});
+
+// Edit Transaction Amount (Trigger trg_fact_audit)
+window.openEditModal = function (factId, currentAmount) {
+    if ($('editFactId')) $('editFactId').value = factId;
+    if ($('editNewAmount')) $('editNewAmount').value = currentAmount;
+    $('editAmountModal')?.classList.add('show');
+};
+
+$('editAmountCancel')?.addEventListener('click', () => {
+    $('editAmountModal')?.classList.remove('show');
+});
+
+$('editAmountSave')?.addEventListener('click', async () => {
+    const factId = parseInt($('editFactId')?.value, 10);
+    const amount = parseFloat($('editNewAmount')?.value);
+    const btn = $('editAmountSave');
+
+    setBtnLoading(btn, true, 'Đang lưu...');
+    try {
+        const res = await api(`/api/transactions/${factId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount })
+        });
+
+        showToast(res.message || 'Cập nhật thành công! Kiểm tra tab Kiểm toán để xem vết audit_log.', 'success');
+        $('editAmountModal')?.classList.remove('show');
+        loadTransactions(txnPage);
+
+    } catch (err) {
+        showToast(err.message, 'error', 8000);
+    } finally {
+        setBtnLoading(btn, false);
+    }
+});
+
+// Delete Transaction (Trigger trg_fact_period_guard or trg_fact_audit)
+window.deleteTransaction = async function (factId) {
+    const confirmed = await showConfirmModal(`Bạn có chắc chắn muốn xóa giao dịch #${factId}? Nếu quý đã bị chốt, Trigger trg_fact_period_guard sẽ chặn và báo lỗi ORA-20003.`);
+    if (!confirmed) return;
+
+    try {
+        const res = await api(`/api/transactions/${factId}`, { method: 'DELETE' });
+        showToast(res.message || 'Đã xóa giao dịch thành công!', 'success');
+        loadTransactions(txnPage);
+    } catch (err) {
+        showToast(err.message, 'error', 8000);
+    }
+};
+
+// Wide Load UNPIVOT
+$('btnLoadWide')?.addEventListener('click', async () => {
+    const btn = $('btnLoadWide');
+    setBtnLoading(btn, true, 'Đang nạp...');
+
+    try {
+        const branchId = parseInt($('wideBranch')?.value || '1', 10);
+        const productId = parseInt($('wideProduct')?.value || '1', 10);
+        const itemId = parseInt($('wideItem')?.value || '1', 10);
+        const year = parseInt($('wideYear')?.value || '2025', 10);
+
+        const parseQ = id => {
+            const val = $(id)?.value.trim();
+            return val ? parseFloat(val) : null;
         };
 
-        okBtn.onclick = () => { cleanUp(); resolve(true); };
-        cancelBtn.onclick = () => { cleanUp(); resolve(false); };
+        const q1 = parseQ('wideQ1');
+        const q2 = parseQ('wideQ2');
+        const q3 = parseQ('wideQ3');
+        const q4 = parseQ('wideQ4');
+
+        const res = await post('/api/load-wide', { branchId, productId, itemId, year, q1, q2, q3, q4 });
+        showToast(res.message || 'Đã nạp thành công dữ liệu bảng rộng bằng UNPIVOT!', 'success');
+
+        ['wideQ1', 'wideQ2', 'wideQ3', 'wideQ4'].forEach(id => {
+            const el = $(id);
+            if (el) el.value = '';
+        });
+
+        loadTransactions(1);
+    } catch (err) {
+        showToast(err.message, 'error', 8000);
+    } finally {
+        setBtnLoading(btn, false);
+    }
+});
+
+// ============================================================================
+// PHÂN HỆ 4: QUẢN LÝ KỲ KẾ TOÁN & KHÓA SỔ
+// ============================================================================
+async function loadClosedQuarters() {
+    try {
+        const data = await api('/api/closed');
+        const container = $('closedQuartersList');
+        if (!container) return;
+
+        if (data.length === 0) {
+            container.innerHTML = `<div class="empty-state text-emerald">Chưa có quý nào bị khóa. Tất cả các kỳ đang mở.</div>`;
+            return;
+        }
+
+        container.innerHTML = data.map(q => `
+            <div class="locked-item">
+                <div class="locked-badge">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                    <span>${q.year}-${q.quarter}</span>
+                </div>
+                <span class="locked-time">Chốt lúc: ${q.closedAt}</span>
+            </div>
+        `).join('');
+
+        renderQuarterGridWithData(data);
+    } catch (err) {
+        console.error('Lỗi khi tải danh sách quý chốt:', err);
+    }
+}
+
+async function renderQuarterGrid() {
+    try {
+        const data = await api('/api/closed');
+        renderQuarterGridWithData(data);
+    } catch (err) {
+        console.error('Lỗi khi nạp grid 8 quý:', err);
+    }
+}
+
+function renderQuarterGridWithData(closedData) {
+    const grid = $('quarterGrid');
+    if (!grid) return;
+
+    const lockedSet = new Set(closedData.map(c => `${c.year}-${c.quarter}`));
+
+    grid.querySelectorAll('.quarter-cell').forEach(cell => {
+        const y = cell.dataset.year;
+        const q = cell.dataset.quarter;
+        const key = `${y}-${q}`;
+        const isLocked = lockedSet.has(key);
+
+        const statusEl = cell.querySelector('.q-status');
+        if (isLocked) {
+            cell.className = 'quarter-cell q-locked';
+            if (statusEl) {
+                statusEl.className = 'q-status';
+                statusEl.textContent = 'Đã khóa';
+            }
+        } else {
+            cell.className = 'quarter-cell q-open';
+            if (statusEl) {
+                statusEl.className = 'q-status';
+                statusEl.textContent = 'Đang mở';
+            }
+        }
     });
 }
+
+$('btnRefreshClosed')?.addEventListener('click', loadClosedQuarters);
+$('btnRefreshQuarterGrid')?.addEventListener('click', renderQuarterGrid);
+
+// Confirm Modal Handler
+let confirmResolve = null;
+function showConfirmModal(message) {
+    return new Promise(resolve => {
+        confirmResolve = resolve;
+        $('confirmMessage').textContent = message;
+        $('confirmModal')?.classList.add('show');
+    });
+}
+
+$('confirmCancel')?.addEventListener('click', () => {
+    $('confirmModal')?.classList.remove('show');
+    if (confirmResolve) confirmResolve(false);
+});
+
+$('confirmOk')?.addEventListener('click', () => {
+    $('confirmModal')?.classList.remove('show');
+    if (confirmResolve) confirmResolve(true);
+});
 
 $('btnCloseQuarter')?.addEventListener('click', async () => {
     const year = parseInt($('lockYear')?.value || '2025', 10);
     const quarter = $('lockQuarter')?.value || 'Q1';
 
-    const confirmed = await showConfirmModal(`Bạn có chắc chắn muốn chốt quý ${year}-${quarter}? Hệ thống sẽ khóa SHARE MODE và trigger sẽ chặn mọi thao tác cập nhật dữ liệu trên kỳ này.`);
+    const confirmed = await showConfirmModal(`Bạn có chắc chắn muốn chốt quý ${year}-${quarter}? Hệ thống sẽ thực hiện LOCK TABLE fact_income IN SHARE MODE và Trigger trg_fact_period_guard sẽ chặn mọi thao tác thêm/sửa/xóa.`);
     if (!confirmed) return;
 
     const btn = $('btnCloseQuarter');
@@ -639,7 +1209,7 @@ $('btnCloseQuarter')?.addEventListener('click', async () => {
 
     try {
         const res = await post('/api/close', { year, quarter });
-        showToast(res.message || `Đã chốt thành công quý ${year}-${quarter}`, 'success');
+        showToast(res.message || `Đã chốt quý ${year}-${quarter}!`, 'success');
         loadClosedQuarters();
         loadPeriodCloseLog();
     } catch (err) {
@@ -653,7 +1223,7 @@ $('btnReopenQuarter')?.addEventListener('click', async () => {
     const year = parseInt($('lockYear')?.value || '2025', 10);
     const quarter = $('lockQuarter')?.value || 'Q1';
 
-    const confirmed = await showConfirmModal(`Bạn có muốn mở lại quý ${year}-${quarter}? Sau khi mở lại, người dùng có thể tiếp tục thêm, sửa giao dịch.`);
+    const confirmed = await showConfirmModal(`Bạn có muốn mở lại quý ${year}-${quarter}? Sau khi mở lại, người dùng có thể tiếp tục thêm, sửa hoặc xóa giao dịch trên kỳ này.`);
     if (!confirmed) return;
 
     const btn = $('btnReopenQuarter');
@@ -661,7 +1231,7 @@ $('btnReopenQuarter')?.addEventListener('click', async () => {
 
     try {
         const res = await post('/api/reopen', { year, quarter });
-        showToast(res.message || `Đã mở lại thành công quý ${year}-${quarter}`, 'success');
+        showToast(res.message || `Đã mở lại quý ${year}-${quarter}!`, 'success');
         loadClosedQuarters();
         loadPeriodCloseLog();
     } catch (err) {
@@ -671,40 +1241,6 @@ $('btnReopenQuarter')?.addEventListener('click', async () => {
     }
 });
 
-async function loadClosedQuarters() {
-    try {
-        const list = await api('/api/closed');
-        const container = $('closedQuartersList');
-        const kpiLocked = $('kpiLockedCount');
-        const kpiMeta = $('kpiLockedMeta');
-
-        if (kpiLocked) kpiLocked.textContent = list.length;
-
-        if (list.length === 0) {
-            if (container) container.innerHTML = `<div class="empty-state">Chưa có quý nào được chốt bảo vệ.</div>`;
-            if (kpiMeta) kpiMeta.textContent = 'Chưa có quý nào bị khóa';
-            return;
-        }
-
-        const names = list.map(item => `${item.year}-${item.quarter}`).join(', ');
-        if (kpiMeta) kpiMeta.textContent = `Đang khóa: ${names}`;
-
-        if (container) {
-            container.innerHTML = list.map(item => `
-                <div class="locked-card">
-                    <div class="locked-card-info">
-                        <span class="locked-pill">ĐÃ KHÓA</span>
-                        <span class="locked-quarter-name">${item.year} - ${item.quarter}</span>
-                    </div>
-                    <span class="locked-time">${item.closedAt}</span>
-                </div>
-            `).join('');
-        }
-    } catch (err) {
-        console.error('Lỗi khi tải danh sách quý chốt:', err);
-    }
-}
-
 async function loadPeriodCloseLog() {
     try {
         const logs = await api('/api/logs/period-close');
@@ -712,135 +1248,118 @@ async function loadPeriodCloseLog() {
         if (!tbody) return;
 
         if (logs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Chưa có bản ghi nhật ký</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Chưa có lịch sử chốt kỳ</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = logs.map(d => {
-            const badgeClass = d.action === 'CLOSE' ? 'badge-ora' : 'badge-pass';
-            return `
-                <tr>
-                    <td><strong>#${d.logId}</strong></td>
-                    <td>${d.year}</td>
-                    <td><strong>${d.quarter}</strong></td>
-                    <td><span class="${badgeClass}">${d.action}</span></td>
-                    <td>${d.actedBy}</td>
-                    <td class="text-muted">${d.actedAt}</td>
-                </tr>
-            `;
-        }).join('');
+        tbody.innerHTML = logs.map(l => `
+            <tr>
+                <td><strong>#${l.logId}</strong></td>
+                <td>${l.year}</td>
+                <td><span class="badge-neutral">${l.quarter}</span></td>
+                <td><span class="${l.action === 'CLOSE' ? 'badge-ora' : 'badge-pass'}">${l.action === 'CLOSE' ? 'CHỐT KỲ' : 'MỞ LẠI'}</span></td>
+                <td>${l.actedBy}</td>
+                <td class="text-muted">${l.actedAt}</td>
+            </tr>
+        `).join('');
     } catch (err) {
-        console.error('Lỗi khi tải nhật ký chốt kỳ:', err);
+        console.error('Lỗi tải period_close_log:', err);
     }
 }
 
-$('btnRefreshClosed')?.addEventListener('click', () => {
-    loadClosedQuarters();
-    loadPeriodCloseLog();
-});
-
 // ============================================================================
-// TAB 3: NHẬP GIAO DỊCH & UNPIVOT
+// PHÂN HỆ 5: DANH MỤC & KIỂM TOÁN HỆ THỐNG
 // ============================================================================
-$('btnAddTxn')?.addEventListener('click', async () => {
-    const btn = $('btnAddTxn');
-    setBtnLoading(btn, true, 'Đang gửi giao dịch...');
+async function loadDimTables() {
+    loadDimBranches();
+    loadDimProducts();
+    loadDimItems();
+}
 
+async function loadDimBranches() {
     try {
-        const branchId = parseInt($('txnBranch')?.value || '1', 10);
-        const productId = parseInt($('txnProduct')?.value || '1', 10);
-        const itemId = parseInt($('txnItem')?.value || '1', 10);
-        const periodId = parseInt($('txnPeriod')?.value || '202503', 10);
-        const amount = parseFloat($('txnAmount')?.value || '100');
+        const list = await api('/api/dim/branches');
+        const tbody = document.querySelector('#dimBranchTable tbody');
+        if (!tbody) return;
 
-        const res = await post('/api/txn', { branchId, productId, itemId, periodId, amount });
-        showToast(res.message || 'Đã thêm giao dịch thành công vào Oracle 23ai!', 'success');
-
-        // Refresh current report to show new numbers
-        loadReport();
+        tbody.innerHTML = list.map(b => `
+            <tr>
+                <td><strong>${b.id}</strong></td>
+                <td>${b.name}</td>
+                <td>${b.region}</td>
+            </tr>
+        `).join('');
     } catch (err) {
-        showToast(err.message, 'error', 8000);
-    } finally {
-        setBtnLoading(btn, false);
+        console.error('Lỗi tải dim_branch:', err);
     }
-});
+}
 
-// Toggle test mode for edge cases
-$('toggleTestMode')?.addEventListener('change', e => {
-    const isTest = e.target.checked;
-    const periodInput = $('txnPeriod');
-    const amountInput = $('txnAmount');
-
-    if (isTest) {
-        if (periodInput) periodInput.value = 202402; // Closed quarter test
-        if (amountInput) amountInput.value = -5; // Negative amount test
-        showToast('Đã điền giá trị kiểm thử biên: Kỳ 202402 và Số tiền -5', 'error');
-    } else {
-        if (periodInput) periodInput.value = 202503;
-        if (amountInput) amountInput.value = 100;
-    }
-});
-
-// Load wide table (UNPIVOT)
-$('btnLoadWide')?.addEventListener('click', async () => {
-    const btn = $('btnLoadWide');
-    setBtnLoading(btn, true, 'Đang xử lý UNPIVOT...');
-
+async function loadDimProducts() {
     try {
-        const branchId = parseInt($('wideBranch')?.value || '1', 10);
-        const productId = parseInt($('wideProduct')?.value || '1', 10);
-        const itemId = parseInt($('wideItem')?.value || '1', 10);
-        const year = parseInt($('wideYear')?.value || '2025', 10);
+        const list = await api('/api/dim/products');
+        const tbody = document.querySelector('#dimProductTable tbody');
+        if (!tbody) return;
 
-        const q1 = $('wideQ1')?.value ? parseFloat($('wideQ1').value) : null;
-        const q2 = $('wideQ2')?.value ? parseFloat($('wideQ2').value) : null;
-        const q3 = $('wideQ3')?.value ? parseFloat($('wideQ3').value) : null;
-        const q4 = $('wideQ4')?.value ? parseFloat($('wideQ4').value) : null;
-
-        const res = await post('/api/load-wide', { branchId, productId, itemId, year, q1, q2, q3, q4 });
-        showToast(res.message || 'Đã nạp thành công dữ liệu bảng rộng bằng UNPIVOT!', 'success');
-
-        // Clear quarter inputs
-        ['wideQ1', 'wideQ2', 'wideQ3', 'wideQ4'].forEach(id => {
-            const el = $(id);
-            if (el) el.value = '';
-        });
-
-        loadReport();
+        tbody.innerHTML = list.map(p => `
+            <tr>
+                <td><strong>${p.id}</strong></td>
+                <td>${p.name}</td>
+                <td>${p.group}</td>
+            </tr>
+        `).join('');
     } catch (err) {
-        showToast(err.message, 'error', 8000);
-    } finally {
-        setBtnLoading(btn, false);
+        console.error('Lỗi tải dim_product:', err);
     }
-});
+}
 
-// ============================================================================
-// TAB 4: NHẬT KÝ & HỆ THỐNG
-// ============================================================================
-$('btnNetIncome')?.addEventListener('click', async () => {
-    const branchId = $('niBranch')?.value || '1';
-    const year = $('niYear')?.value || '2025';
-    const quarter = $('niQuarter')?.value || 'Q1';
-
-    const btn = $('btnNetIncome');
-    setBtnLoading(btn, true, 'Đang tính...');
-
+async function loadDimItems() {
     try {
-        const res = await api(`/api/net-income?branchId=${branchId}&year=${year}&quarter=${quarter}`);
-        const box = $('niResultBox');
-        const valEl = $('niResultValue');
+        const list = await api('/api/dim/items');
+        const tbody = document.querySelector('#dimItemTable tbody');
+        if (!tbody) return;
 
-        if (box) box.style.display = 'flex';
-        if (valEl) {
-            valEl.textContent = `${formatNumber(res.netIncome)} triệu ₫`;
-            valEl.style.color = res.netIncome < 0 ? 'var(--rose)' : 'var(--primary)';
+        tbody.innerHTML = list.map(i => `
+            <tr>
+                <td><strong>${i.id}</strong></td>
+                <td>${i.name}</td>
+                <td><span class="${i.sign === 1 ? 'badge-pass' : 'badge-ora'}">${i.sign === 1 ? '+1 (Thu)' : '−1 (Chi)'}</span></td>
+            </tr>
+        `).join('');
+    } catch (err) {
+        console.error('Lỗi tải dim_income_item:', err);
+    }
+}
+
+$('btnRefreshDimBranch')?.addEventListener('click', loadDimBranches);
+$('btnRefreshDimProduct')?.addEventListener('click', loadDimProducts);
+$('btnRefreshDimItem')?.addEventListener('click', loadDimItems);
+
+async function loadAuditLog() {
+    try {
+        const logs = await api('/api/logs/audit');
+        const tbody = $('auditLogBody');
+        if (!tbody) return;
+
+        if (logs.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Chưa có giao dịch sửa/xóa nào trong audit_log</td></tr>`;
+            return;
         }
+
+        tbody.innerHTML = logs.map(d => `
+            <tr>
+                <td><strong>#${d.logId}</strong></td>
+                <td><span class="${d.action === 'DELETE' ? 'badge-ora' : 'badge-pass'}">${d.action}</span></td>
+                <td>${d.factId ?? '—'}</td>
+                <td class="text-right tabular-nums">${d.oldAmount != null ? formatNumber(d.oldAmount) : '—'}</td>
+                <td class="text-right tabular-nums">${d.newAmount != null ? formatNumber(d.newAmount) : '—'}</td>
+                <td>${d.changedBy}</td>
+                <td class="text-muted">${d.changedAt}</td>
+            </tr>
+        `).join('');
     } catch (err) {
-        showToast(err.message, 'error');
-    } finally {
-        setBtnLoading(btn, false);
+        console.error('Lỗi khi tải audit_log:', err);
     }
-});
+}
 
 async function loadTestLog() {
     try {
@@ -898,7 +1417,6 @@ async function loadSystemStatus() {
             </div>
         `;
 
-        // Update header pill
         const statusPill = $('oracleStatusPill');
         const statusLabel = $('statusLabel');
         if (statusPill && statusLabel) {
@@ -918,64 +1436,65 @@ async function loadSystemStatus() {
     }
 }
 
-async function loadAuditLog() {
+$('btnNetIncome')?.addEventListener('click', async () => {
+    const branchId = $('niBranch')?.value || '1';
+    const year = $('niYear')?.value || '2025';
+    const quarter = $('niQuarter')?.value || 'Q1';
+
+    const btn = $('btnNetIncome');
+    setBtnLoading(btn, true, 'Đang tính...');
+
     try {
-        const logs = await api('/api/logs/audit');
-        const tbody = $('auditLogBody');
-        if (!tbody) return;
+        const res = await api(`/api/net-income?branchId=${branchId}&year=${year}&quarter=${quarter}`);
+        const box = $('niResultBox');
+        const valEl = $('niResultValue');
 
-        if (logs.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Chưa có giao dịch sửa/xóa nào trong audit_log</td></tr>`;
-            return;
+        if (box) box.style.display = 'flex';
+        if (valEl) {
+            valEl.textContent = `${formatNumber(res.netIncome)} triệu ₫`;
+            valEl.style.color = res.netIncome < 0 ? 'var(--rose)' : 'var(--primary)';
         }
-
-        tbody.innerHTML = logs.map(d => `
-            <tr>
-                <td><strong>#${d.logId}</strong></td>
-                <td><span class="${d.action === 'DELETE' ? 'badge-ora' : 'badge-pass'}">${d.action}</span></td>
-                <td>${d.factId ?? '—'}</td>
-                <td class="text-right tabular-nums">${d.oldAmount != null ? formatNumber(d.oldAmount) : '—'}</td>
-                <td class="text-right tabular-nums">${d.newAmount != null ? formatNumber(d.newAmount) : '—'}</td>
-                <td>${d.changedBy}</td>
-                <td class="text-muted">${d.changedAt}</td>
-            </tr>
-        `).join('');
     } catch (err) {
-        console.error('Lỗi khi tải audit_log:', err);
+        showToast(err.message, 'error');
+    } finally {
+        setBtnLoading(btn, false);
     }
-}
+});
 
 $('btnRefreshTestLog')?.addEventListener('click', loadTestLog);
 $('btnRefreshStatus')?.addEventListener('click', loadSystemStatus);
 $('btnRefreshAudit')?.addEventListener('click', loadAuditLog);
 
 // ============================================================================
-// INITIALIZATION ON DOMCONTENTLOADED
+// INITIALIZATION
 // ============================================================================
 async function loadLookups() {
     try {
         const data = await api('/api/lookups');
 
-        // 1. Branches
+        // Populate Branches
         const branchHtml = data.branches.map(b => `<option value="${b.id}">${b.name} (${b.region})</option>`).join('');
-        ['txnBranch', 'wideBranch', 'niBranch'].forEach(id => {
+        const branchFilterHtml = `<option value="">Tất cả chi nhánh</option>` + branchHtml;
+
+        if ($('txnFilterBranch')) $('txnFilterBranch').innerHTML = branchFilterHtml;
+        ['txnBranch', 'wideBranch', 'niBranch', 'addTxnBranch'].forEach(id => {
             const el = $(id);
             if (el) el.innerHTML = branchHtml;
         });
 
-        // 2. Products
+        // Populate Products
         const prodHtml = data.products.map(p => `<option value="${p.id}">${p.name} (${p.group})</option>`).join('');
-        ['txnProduct', 'wideProduct'].forEach(id => {
+        ['txnProduct', 'wideProduct', 'addTxnProduct'].forEach(id => {
             const el = $(id);
             if (el) el.innerHTML = prodHtml;
         });
 
-        // 3. Items
+        // Populate Items
         const itemHtml = data.items.map(i => {
             const signText = i.sign === 1 ? '+ Thu nhập' : '− Chi phí';
             return `<option value="${i.id}">${i.name} [${signText}]</option>`;
         }).join('');
-        ['txnItem', 'wideItem'].forEach(id => {
+        ['txnItem', 'wideItem', 'addTxnItem'].forEach(id => {
             const el = $(id);
             if (el) el.innerHTML = itemHtml;
         });
@@ -989,11 +1508,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Setup Theme (Default Light)
     initTheme();
 
-    // 2. Load Lookups, Status & Closed Quarters
+    // 2. Setup Sub-Tabs
+    initSubTabs();
+
+    // 3. Load Lookups, Status, 8-Quarter Grid
     loadLookups();
     loadSystemStatus();
     loadClosedQuarters();
 
-    // 3. CRITICAL: Automatically load initial ROLLUP 2025 report immediately!
-    loadReport();
+    // 4. Load Dashboard by default (Year 2025)
+    loadDashboard(2025);
 });

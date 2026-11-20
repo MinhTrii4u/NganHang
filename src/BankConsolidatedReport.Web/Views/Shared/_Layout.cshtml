@@ -11,6 +11,14 @@
     <link rel="stylesheet" href="~/css/site.css" />
     <!-- Local Chart.js for 100% offline availability -->
     <script src="~/js/chart.umd.min.js"></script>
+    <style>
+        @@media print {
+            .sidebar, .top-header, .mobile-toggle, .theme-btn, .status-pill, .toast-container { display: none !important; }
+            .main-wrapper { margin-left: 0 !important; }
+            .page-content { padding: 0 !important; }
+            #printHeader { display: block !important; }
+        }
+    </style>
 </head>
 <body>
     <div class="app-layout">
@@ -23,8 +31,8 @@
                     </svg>
                 </div>
                 <div class="brand-info">
-                    <span class="brand-name">BankReport</span>
-                    <span class="brand-sub">Oracle 23ai OLAP</span>
+                    <span class="brand-name">VietCore Finance</span>
+                    <span class="brand-sub">Hệ thống Báo cáo Hợp nhất</span>
                 </div>
                 <button class="sidebar-toggle" id="sidebarToggle" title="Thu gọn menu" aria-label="Toggle Sidebar">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -36,40 +44,62 @@
             </div>
 
             <nav class="sidebar-menu">
-                <a href="#tab-report" class="menu-item active" data-tab="tab-report">
+                <!-- 1. Tổng quan (Dashboard) - ACTIVE -->
+                <a href="#tab-dashboard" class="menu-item active" data-tab="tab-dashboard">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                    </svg>
+                    <span>Tổng quan</span>
+                </a>
+                <!-- 2. Báo cáo OLAP -->
+                <a href="#tab-report" class="menu-item" data-tab="tab-report">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
                     </svg>
-                    <span>Báo cáo Hợp nhất</span>
+                    <span>Báo cáo OLAP</span>
                 </a>
-                <a href="#tab-lock" class="menu-item" data-tab="tab-lock">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                    </svg>
-                    <span>Chốt kỳ & Khóa</span>
-                </a>
+                <!-- 3. Sổ Giao dịch -->
                 <a href="#tab-txn" class="menu-item" data-tab="tab-txn">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                     </svg>
-                    <span>Giao dịch & UNPIVOT</span>
+                    <span>Sổ Giao dịch</span>
                 </a>
-                <a href="#tab-logs" class="menu-item" data-tab="tab-logs">
+                <!-- 4. Khóa sổ Kế toán -->
+                <a href="#tab-lock" class="menu-item" data-tab="tab-lock">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <span>Khóa sổ Kế toán</span>
+                </a>
+                <!-- 5. Danh mục & Kiểm toán -->
+                <a href="#tab-audit" class="menu-item" data-tab="tab-audit">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
                     </svg>
-                    <span>Nhật ký & Hệ thống</span>
+                    <span>Danh mục &amp; Kiểm toán</span>
                 </a>
             </nav>
 
             <div class="sidebar-footer">
-                <div class="db-badge">
-                    <div class="pulse-indicator"></div>
-                    <div class="db-badge-text">
-                        <span class="db-title">Oracle 23ai</span>
-                        <span class="db-pdb">FREEPDB1 · bank</span>
+                <!-- Collapsible "Chế độ Kỹ thuật" section -->
+                <details class="tech-mode-details">
+                    <summary class="tech-mode-summary">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        <span>Chế độ Kỹ thuật</span>
+                    </summary>
+                    <div class="db-badge db-badge-sm">
+                        <div class="pulse-indicator"></div>
+                        <div class="db-badge-text">
+                            <span class="db-title" style="font-size:0.7rem;">Oracle 23ai</span>
+                            <span class="db-pdb" style="font-size:0.65rem;">FREEPDB1 · bank</span>
+                        </div>
                     </div>
-                </div>
+                </details>
             </div>
         </aside>
 
@@ -82,8 +112,8 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                     </button>
                     <div>
-                        <h1 class="header-title">Báo cáo Tài chính Hợp nhất</h1>
-                        <p class="header-subtitle">Đơn vị: triệu đồng · Lợi nhuận ròng = Thu nhập − Chi phí</p>
+                        <h1 class="header-title">Cổng Báo cáo Tài chính Hợp nhất</h1>
+                        <p class="header-subtitle">Đơn vị: triệu đồng · Năm tài chính 2025</p>
                     </div>
                 </div>
 

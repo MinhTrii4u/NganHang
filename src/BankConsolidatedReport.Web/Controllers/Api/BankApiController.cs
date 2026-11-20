@@ -15,6 +15,110 @@ public class BankApiController : ControllerBase
         _repo = repo;
     }
 
+    // ==================== DASHBOARD APIs ====================
+
+    // GET /api/dashboard/kpis?year=2025
+    [HttpGet("dashboard/kpis")]
+    public async Task<IActionResult> GetDashboardKpis([FromQuery] int year = 2025)
+    {
+        var result = await _repo.GetDashboardKpisAsync(year);
+        return Ok(result);
+    }
+
+    // GET /api/dashboard/quarterly?year=2025
+    [HttpGet("dashboard/quarterly")]
+    public async Task<IActionResult> GetQuarterlyTrend([FromQuery] int year = 2025)
+    {
+        var result = await _repo.GetQuarterlyTrendAsync(year);
+        return Ok(result);
+    }
+
+    // GET /api/dashboard/product-profit?year=2025
+    [HttpGet("dashboard/product-profit")]
+    public async Task<IActionResult> GetProductProfit([FromQuery] int year = 2025)
+    {
+        var result = await _repo.GetProductGroupProfitAsync(year);
+        return Ok(result);
+    }
+
+    // GET /api/dashboard/branch-ranking?year=2025
+    [HttpGet("dashboard/branch-ranking")]
+    public async Task<IActionResult> GetBranchRanking([FromQuery] int year = 2025)
+    {
+        var result = await _repo.GetBranchRankingAsync(year);
+        return Ok(result);
+    }
+
+    // ==================== TRANSACTION CRUD APIs ====================
+
+    // GET /api/transactions?page=1&pageSize=20&branchId=1&year=2025&quarter=Q1&search=...
+    [HttpGet("transactions")]
+    public async Task<IActionResult> GetTransactions(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] int? branchId = null,
+        [FromQuery] int? year = null,
+        [FromQuery] string? quarter = null,
+        [FromQuery] string? search = null)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 5) pageSize = 5;
+        if (pageSize > 100) pageSize = 100;
+
+        var (rows, totalRows) = await _repo.GetTransactionsPagedAsync(page, pageSize, branchId, year, quarter, search);
+        int totalPages = (int)Math.Ceiling((double)totalRows / pageSize);
+
+        return Ok(new
+        {
+            rows,
+            totalRows,
+            page,
+            pageSize,
+            totalPages
+        });
+    }
+
+    // PUT /api/transactions/{id}
+    [HttpPut("transactions/{id:int}")]
+    public async Task<IActionResult> UpdateTransaction([FromRoute] int id, [FromBody] UpdateTransactionAmountRequest request)
+    {
+        await _repo.UpdateTransactionAmountAsync(id, request.Amount);
+        return Ok(new { message = $"Đã cập nhật số tiền giao dịch #{id} thành công. Trigger trg_fact_audit đã ghi vết kiểm toán.", factId = id, amount = request.Amount });
+    }
+
+    // DELETE /api/transactions/{id}
+    [HttpDelete("transactions/{id:int}")]
+    public async Task<IActionResult> DeleteTransaction([FromRoute] int id)
+    {
+        await _repo.DeleteTransactionAsync(id);
+        return Ok(new { message = $"Đã xóa giao dịch #{id} thành công. Trigger trg_fact_audit đã ghi vết kiểm toán.", factId = id });
+    }
+
+    // ==================== MASTER DATA (DIM) APIs ====================
+
+    [HttpGet("dim/branches")]
+    public async Task<IActionResult> GetBranches()
+    {
+        var list = await _repo.GetDimBranchesAsync();
+        return Ok(list);
+    }
+
+    [HttpGet("dim/products")]
+    public async Task<IActionResult> GetProducts()
+    {
+        var list = await _repo.GetDimProductsAsync();
+        return Ok(list);
+    }
+
+    [HttpGet("dim/items")]
+    public async Task<IActionResult> GetItems()
+    {
+        var list = await _repo.GetDimItemsAsync();
+        return Ok(list);
+    }
+
+    // ==================== CORE OLAP REPORT APIs ====================
+
     // 1. GET /api/report?mode=ROLLUP&year=2025
     [HttpGet("report")]
     public async Task<IActionResult> GetReport([FromQuery] string mode = "ROLLUP", [FromQuery] int year = 2025)
@@ -60,7 +164,7 @@ public class BankApiController : ControllerBase
     public async Task<IActionResult> CloseQuarter([FromBody] QuarterRequest request)
     {
         await _repo.CloseQuarterAsync(request.Year, request.Quarter);
-        return Ok(new { message = $"Đã chốt quý {request.Year}-{request.Quarter}" });
+        return Ok(new { message = $"Đã chốt quý {request.Year}-{request.Quarter} thành công!" });
     }
 
     // 6. POST /api/reopen
@@ -68,7 +172,7 @@ public class BankApiController : ControllerBase
     public async Task<IActionResult> ReopenQuarter([FromBody] QuarterRequest request)
     {
         await _repo.ReopenQuarterAsync(request.Year, request.Quarter);
-        return Ok(new { message = $"Đã mở lại quý {request.Year}-{request.Quarter}" });
+        return Ok(new { message = $"Đã mở lại quý {request.Year}-{request.Quarter} thành công!" });
     }
 
     // 7. POST /api/txn
@@ -76,7 +180,7 @@ public class BankApiController : ControllerBase
     public async Task<IActionResult> AddTransaction([FromBody] TransactionRequest request)
     {
         await _repo.AddTransactionAsync(request.BranchId, request.ProductId, request.ItemId, request.PeriodId, request.Amount);
-        return Ok(new { message = "Đã thêm giao dịch thành công" });
+        return Ok(new { message = "Đã thêm giao dịch thành công vào Oracle fact_income" });
     }
 
     // 8. POST /api/load-wide
@@ -96,7 +200,7 @@ public class BankApiController : ControllerBase
         return Ok(result);
     }
 
-    // 9. GET /api/logs/period-close
+    // 10. GET /api/logs/period-close
     [HttpGet("logs/period-close")]
     public async Task<IActionResult> GetPeriodCloseLogs()
     {
@@ -104,7 +208,7 @@ public class BankApiController : ControllerBase
         return Ok(result);
     }
 
-    // 10. GET /api/system/status
+    // 11. GET /api/system/status
     [HttpGet("system/status")]
     public async Task<IActionResult> GetSystemStatus()
     {
@@ -136,6 +240,11 @@ public class TransactionRequest
     public decimal Amount { get; set; }
 }
 
+public class UpdateTransactionAmountRequest
+{
+    public decimal Amount { get; set; }
+}
+
 public class LoadWideRequest
 {
     public int BranchId { get; set; }
@@ -147,4 +256,3 @@ public class LoadWideRequest
     public decimal? Q3 { get; set; }
     public decimal? Q4 { get; set; }
 }
-
