@@ -458,6 +458,12 @@ body {
     white-space: nowrap;
 }
 
+.status-pill.connecting {
+    background: var(--bg-surface-hover);
+    border-color: var(--border-color);
+    color: var(--text-muted);
+}
+
 .status-pill.offline {
     background: var(--rose-bg);
     border-color: var(--rose-border);
