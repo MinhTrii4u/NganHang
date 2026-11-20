@@ -35,13 +35,6 @@
                     <span class="brand-name">VietCore Finance</span>
                     <span class="brand-sub">Hệ thống Báo cáo Hợp nhất</span>
                 </div>
-                <button class="sidebar-toggle" id="sidebarToggle" title="Thu gọn menu" aria-label="Toggle Sidebar">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="3" y1="12" x2="21" y2="12"></line>
-                        <line x1="3" y1="6" x2="21" y2="6"></line>
-                        <line x1="3" y1="18" x2="21" y2="18"></line>
-                    </svg>
-                </button>
             </div>
 
             <nav class="sidebar-menu">
@@ -86,12 +79,12 @@
             <div class="sidebar-footer">
                 <!-- Collapsible "Chế độ Kỹ thuật" section -->
                 <details class="tech-mode-details">
-                    <summary class="tech-mode-summary">
+                    <summary class="tech-mode-summary" title="Chế độ Kỹ thuật (Oracle 23ai)">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="12" cy="12" r="3"></circle>
                             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                         </svg>
-                        <span>Chế độ Kỹ thuật</span>
+                        <span class="tech-mode-text">Chế độ Kỹ thuật</span>
                     </summary>
                     <div class="db-badge db-badge-sm">
                         <div class="pulse-indicator"></div>
@@ -109,6 +102,14 @@
             <!-- Modern Top Header -->
             <header class="top-header">
                 <div class="header-left">
+                    <!-- Desktop Sidebar Toggle Button (Always visible on Top Header) -->
+                    <button class="sidebar-toggle-btn" id="sidebarToggle" title="Thu gọn / Mở rộng Sidebar" aria-label="Toggle Sidebar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
                     <button class="mobile-toggle" id="mobileToggle" aria-label="Open Mobile Menu">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
                     </button>
