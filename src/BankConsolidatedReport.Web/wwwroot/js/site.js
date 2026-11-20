@@ -235,10 +235,22 @@ $('themeToggle')?.addEventListener('click', () => {
     }
 });
 
-// Sidebar toggle
+// Sidebar toggle (Desktop Header Button & Ctrl+B)
 $('sidebarToggle')?.addEventListener('click', () => {
     $('sidebar')?.classList.toggle('collapsed');
     localStorage.setItem('sidebar-collapsed', $('sidebar')?.classList.contains('collapsed'));
+});
+
+// Keyboard shortcut: Ctrl + B to toggle sidebar
+document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        const activeTag = document.activeElement?.tagName?.toLowerCase();
+        if (activeTag !== 'input' && activeTag !== 'textarea') {
+            e.preventDefault();
+            $('sidebar')?.classList.toggle('collapsed');
+            localStorage.setItem('sidebar-collapsed', $('sidebar')?.classList.contains('collapsed'));
+        }
+    }
 });
 
 if (localStorage.getItem('sidebar-collapsed') === 'true') {
