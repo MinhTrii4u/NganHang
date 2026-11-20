@@ -310,7 +310,19 @@ function initSubTabs() {
 
             btn.classList.add('active');
             const targetPanel = $(btn.dataset.subtab);
-            if (targetPanel) targetPanel.classList.add('active');
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+                if (btn.dataset.subtab === 'subtab-txn-list') {
+                    loadTransactions(txnPage);
+                } else if (btn.dataset.subtab === 'subtab-dim') {
+                    loadDimTables();
+                } else if (btn.dataset.subtab === 'subtab-audit-log') {
+                    loadAuditLog();
+                } else if (btn.dataset.subtab === 'subtab-system') {
+                    loadTestLog();
+                    loadSystemStatus();
+                }
+            }
         });
     });
 }
@@ -320,12 +332,25 @@ function initSubTabs() {
 // ============================================================================
 async function loadDashboard(year) {
     try {
-        const [kpis, quarterly, products, branches] = await Promise.all([
-            api(`/api/dashboard/kpis?year=${year}`),
-            api(`/api/dashboard/quarterly?year=${year}`),
-            api(`/api/dashboard/product-profit?year=${year}`),
-            api(`/api/dashboard/branch-ranking?year=${year}`)
-        ]);
+        let kpis, quarterly, products, branches;
+        try {
+            const data = await api(`/api/dashboard?year=${year}`);
+            kpis = data.kpis;
+            quarterly = data.quarterly;
+            products = data.productProfit;
+            branches = data.branchRanking;
+        } catch {
+            const [k, q, p, b] = await Promise.all([
+                api(`/api/dashboard/kpis?year=${year}`),
+                api(`/api/dashboard/quarterly?year=${year}`),
+                api(`/api/dashboard/product-profit?year=${year}`),
+                api(`/api/dashboard/branch-ranking?year=${year}`)
+            ]);
+            kpis = k;
+            quarterly = q;
+            products = p;
+            branches = b;
+        }
 
         // 1. Render 4 KPIs
         animateCount($('kpiRevenue'), kpis.revenue);
@@ -1277,11 +1302,14 @@ async function loadDimTables() {
 }
 
 async function loadDimBranches() {
+    const tbody = document.querySelector('#dimBranchTable tbody');
+    if (!tbody) return;
     try {
         const list = await api('/api/dim/branches');
-        const tbody = document.querySelector('#dimBranchTable tbody');
-        if (!tbody) return;
-
+        if (!list || list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">Không có dữ liệu chi nhánh</td></tr>`;
+            return;
+        }
         tbody.innerHTML = list.map(b => `
             <tr>
                 <td><strong>${b.id}</strong></td>
@@ -1291,15 +1319,19 @@ async function loadDimBranches() {
         `).join('');
     } catch (err) {
         console.error('Lỗi tải dim_branch:', err);
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-rose">Lỗi nạp danh mục: ${err.message}</td></tr>`;
     }
 }
 
 async function loadDimProducts() {
+    const tbody = document.querySelector('#dimProductTable tbody');
+    if (!tbody) return;
     try {
         const list = await api('/api/dim/products');
-        const tbody = document.querySelector('#dimProductTable tbody');
-        if (!tbody) return;
-
+        if (!list || list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">Không có dữ liệu sản phẩm</td></tr>`;
+            return;
+        }
         tbody.innerHTML = list.map(p => `
             <tr>
                 <td><strong>${p.id}</strong></td>
@@ -1309,15 +1341,19 @@ async function loadDimProducts() {
         `).join('');
     } catch (err) {
         console.error('Lỗi tải dim_product:', err);
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-rose">Lỗi nạp danh mục: ${err.message}</td></tr>`;
     }
 }
 
 async function loadDimItems() {
+    const tbody = document.querySelector('#dimItemTable tbody');
+    if (!tbody) return;
     try {
         const list = await api('/api/dim/items');
-        const tbody = document.querySelector('#dimItemTable tbody');
-        if (!tbody) return;
-
+        if (!list || list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">Không có dữ liệu khoản mục</td></tr>`;
+            return;
+        }
         tbody.innerHTML = list.map(i => `
             <tr>
                 <td><strong>${i.id}</strong></td>
@@ -1327,6 +1363,7 @@ async function loadDimItems() {
         `).join('');
     } catch (err) {
         console.error('Lỗi tải dim_income_item:', err);
+        tbody.innerHTML = `<tr><td colspan="3" class="text-center text-rose">Lỗi nạp danh mục: ${err.message}</td></tr>`;
     }
 }
 
@@ -1335,12 +1372,11 @@ $('btnRefreshDimProduct')?.addEventListener('click', loadDimProducts);
 $('btnRefreshDimItem')?.addEventListener('click', loadDimItems);
 
 async function loadAuditLog() {
+    const tbody = $('auditLogBody');
+    if (!tbody) return;
     try {
         const logs = await api('/api/logs/audit');
-        const tbody = $('auditLogBody');
-        if (!tbody) return;
-
-        if (logs.length === 0) {
+        if (!logs || logs.length === 0) {
             tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Chưa có giao dịch sửa/xóa nào trong audit_log</td></tr>`;
             return;
         }
@@ -1358,15 +1394,15 @@ async function loadAuditLog() {
         `).join('');
     } catch (err) {
         console.error('Lỗi khi tải audit_log:', err);
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center text-rose">Lỗi nạp nhật ký: ${err.message}</td></tr>`;
     }
 }
 
 async function loadTestLog() {
+    const tbody = $('testLogBody');
+    if (!tbody) return;
     try {
         const status = await api('/api/system/status');
-        const tbody = $('testLogBody');
-        if (!tbody) return;
-
         if (!status.testResults || status.testResults.length === 0) {
             tbody.innerHTML = `<tr><td colspan="2" class="text-center text-muted">Chưa có kết quả test_log</td></tr>`;
             return;
@@ -1389,6 +1425,7 @@ async function loadTestLog() {
         }).join('');
     } catch (err) {
         console.error('Lỗi khi tải test_log:', err);
+        tbody.innerHTML = `<tr><td colspan="2" class="text-center text-rose">Lỗi nạp test_log: ${err.message}</td></tr>`;
     }
 }
 
